@@ -145,7 +145,7 @@
                     </h1>
 
                     <p class="mt-5 max-w-xl text-base leading-relaxed text-zinc-400 sm:mt-8 sm:text-lg">
-                        Nucleus Industries specializes in premium residential and commercial construction — from custom single-family homes to multi-story commercial buildings. Every project, crafted with excellence.
+                        Nucleus Industries specializes in custom residential construction — from starter homes to dream builds. Every project is personal, and we treat it that way.
                     </p>
 
                     <div class="mt-7 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap">
@@ -164,10 +164,10 @@
                 {{-- Stats bar --}}
                 <div class="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:mt-20 sm:grid-cols-4">
                     @foreach([
-                        ['num' => '15+', 'label' => 'Years in Business'],
-                        ['num' => '350+', 'label' => 'Homes Built'],
-                        ['num' => '120+', 'label' => 'Commercial Projects'],
-                        ['num' => '98%', 'label' => 'Client Satisfaction'],
+                        ['num' => '17', 'label' => 'Homes Built'],
+                        ['num' => '100%', 'label' => 'Client Satisfaction'],
+                        ['num' => 'On Time', 'label' => 'Project Delivery'],
+                        ['num' => 'Licensed', 'label' => '& Insured'],
                     ] as $stat)
                         <div class="flex flex-col items-center justify-center bg-charcoal py-6 sm:py-8">
                             <p class="text-2xl font-extrabold text-white sm:text-3xl">{{ $stat['num'] }}</p>
@@ -185,10 +185,10 @@
                     <p class="mb-3 text-xs font-bold uppercase tracking-widest text-blue-600">What We Build</p>
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                         <h2 class="text-3xl font-extrabold leading-tight text-charcoal sm:text-4xl lg:text-5xl">
-                            Residential &<br>Commercial Expertise
+                            Built for<br>How You Live
                         </h2>
                         <p class="max-w-sm text-sm text-zinc-500 sm:text-base">
-                            Comprehensive construction services tailored to every scale, from cozy family homes to corporate headquarters.
+                            We specialize in residential construction — custom homes, renovations, and commercial projects done right.
                         </p>
                     </div>
                 </div>
@@ -200,9 +200,9 @@
                         <div class="relative">
                             <div class="mb-5 inline-flex size-12 items-center justify-center rounded-2xl bg-blue-600/20 text-2xl sm:mb-6 sm:size-14 sm:text-3xl">🏠</div>
                             <h3 class="text-xl font-bold text-white sm:text-2xl">Residential Construction</h3>
-                            <p class="mt-3 text-sm text-zinc-400 sm:text-base">Custom single-family homes, townhomes, luxury estates, and planned residential communities built with unmatched attention to detail.</p>
+                            <p class="mt-3 text-sm text-zinc-400 sm:text-base">Your home is one of the most important investments you'll make. We work closely with you from the first meeting to the final walkthrough to make sure it's exactly what you envisioned.</p>
                             <ul class="mt-5 space-y-2 sm:mt-6">
-                                @foreach(['Custom Home Design & Build', 'Luxury Estates', 'Townhomes & Duplexes', 'New Housing Developments', 'Green & Sustainable Homes'] as $item)
+                                @foreach(['Custom Home Design & Build', 'Single-Family Homes', 'Home Additions & Extensions', 'Kitchen & Bathroom Remodels', 'Outdoor & Landscaping Work'] as $item)
                                     <li class="flex items-center gap-2 text-sm text-zinc-300">
                                         <svg class="size-4 shrink-0 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -221,10 +221,10 @@
                         <div class="pointer-events-none absolute right-0 top-0 h-48 w-48 translate-x-1/3 -translate-y-1/3 rounded-full bg-blue-100/80 blur-3xl transition group-hover:bg-blue-200/80 sm:h-64 sm:w-64"></div>
                         <div class="relative">
                             <div class="mb-5 inline-flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-2xl sm:mb-6 sm:size-14 sm:text-3xl">🏢</div>
-                            <h3 class="text-xl font-bold text-charcoal sm:text-2xl">Commercial Construction</h3>
-                            <p class="mt-3 text-sm text-zinc-500 sm:text-base">Office towers, retail centers, mixed-use developments, and institutional buildings designed for performance and longevity.</p>
+                            <h3 class="text-xl font-bold text-charcoal sm:text-2xl">Commercial Projects</h3>
+                            <p class="mt-3 text-sm text-zinc-500 sm:text-base">We also take on commercial work — offices, local retail spaces, and light commercial builds where quality and attention to detail matter just as much.</p>
                             <ul class="mt-5 space-y-2 sm:mt-6">
-                                @foreach(['Office Buildings & Towers', 'Retail & Shopping Centers', 'Mixed-Use Developments', 'Hotels & Hospitality', 'Institutional & Government'] as $item)
+                                @foreach(['Small Office Build-Outs', 'Local Retail Spaces', 'Warehouses & Workshops', 'Tenant Improvements', 'Light Commercial Renovations'] as $item)
                                     <li class="flex items-center gap-2 text-sm text-zinc-600">
                                         <svg class="size-4 shrink-0 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -243,9 +243,9 @@
                 {{-- Additional services --}}
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
                     @foreach([
-                        ['icon' => '🔧', 'title' => 'Renovations & Remodeling', 'desc' => 'Modernize and expand your existing property with expert renovation teams.'],
-                        ['icon' => '📐', 'title' => 'Design-Build', 'desc' => 'Integrated architecture and construction services under one roof.'],
-                        ['icon' => '🌿', 'title' => 'Sustainable Building', 'desc' => 'LEED-certified green construction that reduces your environmental footprint.'],
+                        ['icon' => '🔧', 'title' => 'Renovations & Remodeling', 'desc' => 'Update your kitchen, bathroom, or entire home with craftsmanship you can trust.'],
+                        ['icon' => '📐', 'title' => 'Design & Planning', 'desc' => 'We help you plan your project from concept to blueprint before breaking ground.'],
+                        ['icon' => '🤝', 'title' => 'Honest Estimates', 'desc' => 'No surprises. We give you clear, detailed quotes so you know exactly what to expect.'],
                     ] as $service)
                         <div class="rounded-xl border border-dove-dark bg-white p-5 transition hover:border-blue-200 hover:shadow-md sm:rounded-2xl sm:p-7">
                             <div class="mb-3 text-2xl sm:mb-4 sm:text-3xl">{{ $service['icon'] }}</div>
@@ -267,18 +267,18 @@
                             More Than a<br>Contractor. A Partner.
                         </h2>
                         <p class="mt-5 text-sm text-zinc-400 sm:mt-6 sm:text-base">
-                            Since 2010, Nucleus Industries has been turning blueprints into landmarks. We don't just build structures — we build lasting relationships with our clients, guiding them from the first consultation through final walkthrough and beyond.
+                            Nucleus Industries was built on a simple belief: every family deserves a home that's built with care. We're a hands-on team that takes pride in our work and shows up for our clients every step of the way.
                         </p>
                         <p class="mt-4 text-sm text-zinc-400 sm:text-base">
-                            Our team of 500+ licensed professionals includes architects, engineers, project managers, and skilled tradespeople who share a single mission: delivering exceptional quality, on time and on budget.
+                            We've completed 17 homes and counting — each one built with the same attention to detail as the first. We're fully licensed and insured, and we work closely with every client to make the process as smooth as possible.
                         </p>
 
                         <div class="mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4">
                             @foreach([
-                                ['icon' => '🛡️', 'title' => 'Safety First', 'desc' => 'Zero-tolerance safety culture on every site'],
-                                ['icon' => '⏱️', 'title' => 'On-Time Delivery', 'desc' => '97% of projects delivered on schedule'],
-                                ['icon' => '🏅', 'title' => 'Certified Excellence', 'desc' => 'ISO 9001 & LEED certified'],
-                                ['icon' => '🤝', 'title' => 'Client Focused', 'desc' => 'Transparent communication, always'],
+                                ['icon' => '🛡️', 'title' => 'Safety First', 'desc' => 'A safe job site is a non-negotiable on every project'],
+                                ['icon' => '⏱️', 'title' => 'On-Time Delivery', 'desc' => 'We respect your time and stick to agreed timelines'],
+                                ['icon' => '📋', 'title' => 'Licensed & Insured', 'desc' => 'Fully licensed and insured for your peace of mind'],
+                                ['icon' => '🤝', 'title' => 'Client Focused', 'desc' => 'Transparent communication from start to finish'],
                             ] as $item)
                                 <div class="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-4 sm:p-5">
                                     <span class="text-xl sm:text-2xl">{{ $item['icon'] }}</span>
@@ -305,10 +305,10 @@
                         {{-- Floating card — anchored inside flow on mobile --}}
                         <div class="relative mt-4 rounded-2xl border border-white/10 bg-charcoal-dark p-5 shadow-2xl sm:absolute sm:-bottom-8 sm:-right-6 sm:mt-0 sm:p-6">
                             <div class="flex items-center gap-4">
-                                <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl sm:size-12">🏆</div>
+                                <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl sm:size-12">🏠</div>
                                 <div>
-                                    <p class="font-bold text-white">Award Winning</p>
-                                    <p class="text-xs text-zinc-400">Best Builder 2023 & 2024</p>
+                                    <p class="font-bold text-white">17 Homes Built</p>
+                                    <p class="text-xs text-zinc-400">And every client still calls us back</p>
                                 </div>
                             </div>
                         </div>
@@ -408,16 +408,16 @@
                                     <div class="flex h-full items-center justify-center text-4xl sm:text-5xl">🏢</div>
                                 </div>
                                 <div class="p-5 sm:p-8">
-                                    <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Commercial</span>
-                                    <h3 class="mt-3 text-lg font-bold text-charcoal sm:text-xl">Riverside Corporate Plaza</h3>
-                                    <p class="mt-2 text-sm text-zinc-500">A 12-story Class A office tower featuring 250,000 sq ft of premium workspace, retail ground floor, and underground parking.</p>
+                                    <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Residential</span>
+                                    <h3 class="mt-3 text-lg font-bold text-charcoal sm:text-xl">Custom Family Home — Oakwood</h3>
+                                    <p class="mt-2 text-sm text-zinc-500">A 2,400 sq ft custom single-family home built from the ground up, designed around the family's lifestyle and completed on schedule.</p>
                                 </div>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:flex lg:flex-col">
                             @foreach([
-                                ['emoji' => '🏠', 'type' => 'Residential', 'title' => 'Oakwood Luxury Estates', 'desc' => '48-unit gated luxury single-family community.'],
-                                ['emoji' => '🏘️', 'type' => 'Residential', 'title' => 'Harbor View Condominiums', 'desc' => '200-unit mixed-income residential tower.'],
+                                ['emoji' => '🏠', 'type' => 'Residential', 'title' => 'Kitchen & Addition — Maplewood', 'desc' => 'Full kitchen remodel and master suite addition for a growing family.'],
+                                ['emoji' => '🏡', 'type' => 'Residential', 'title' => 'New Build — Cedarwood', 'desc' => '1,800 sq ft starter home built from the ground up for a first-time buyer.'],
                             ] as $project)
                                 <div class="overflow-hidden rounded-2xl border border-dove-dark bg-white shadow-sm sm:rounded-3xl lg:flex-1">
                                     <div class="aspect-video bg-blue-50">
@@ -435,9 +435,9 @@
 
                     <div class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
                         @foreach([
-                            ['emoji' => '🏭', 'type' => 'Industrial', 'title' => 'Northgate Distribution Hub', 'desc' => '500,000 sq ft logistics center.'],
-                            ['emoji' => '🏩', 'type' => 'Commercial', 'title' => 'Midtown Retail District', 'desc' => 'Four-block open-air retail and dining development.'],
-                            ['emoji' => '🏡', 'type' => 'Residential', 'title' => 'Cedarwood Family Homes', 'desc' => '120 energy-efficient single-family homes.'],
+                            ['emoji' => '🔧', 'type' => 'Renovation', 'title' => 'Full Home Remodel — Riverside', 'desc' => 'Complete interior renovation including new flooring, electrical, and bathrooms.'],
+                            ['emoji' => '🏢', 'type' => 'Commercial', 'title' => 'Office Build-Out — Downtown', 'desc' => 'Professional office space built out for a local business.'],
+                            ['emoji' => '🏠', 'type' => 'Residential', 'title' => 'Custom Home — Hillside', 'desc' => '3-bedroom custom home with open floor plan and covered back patio.'],
                         ] as $project)
                             <div class="overflow-hidden rounded-2xl border border-dove-dark bg-white shadow-sm">
                                 <div class="aspect-video bg-blue-50">
@@ -496,9 +496,9 @@
                 </div>
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
                     @foreach([
-                        ['quote' => '"Nucleus Industries built our dream home on time and under budget. The quality is exceptional — every detail was executed perfectly. We couldn\'t be happier."', 'name' => 'Sarah & Michael T.', 'role' => 'Custom Home Client'],
-                        ['quote' => '"From the first meeting to the ribbon cutting, the team was professional, communicative, and relentless about quality. Our new headquarters is everything we envisioned."', 'name' => 'James R.', 'role' => 'CEO, Vantage Corp'],
-                        ['quote' => '"We\'ve worked with many contractors over the years. Nucleus is in a different league — their systems, their people, and their craftsmanship are world-class."', 'name' => 'Laura M.', 'role' => 'Real Estate Developer'],
+                        ['quote' => '"They built our home exactly the way we imagined it. The communication was great the whole time and they finished on schedule. We\'re so happy we chose Nucleus."', 'name' => 'Sarah & Michael T.', 'role' => 'Custom Home Client'],
+                        ['quote' => '"We hired Nucleus to remodel our kitchen and add a bedroom. The quality of the work was outstanding and the crew was respectful and clean every single day."', 'name' => 'Carlos & Diana M.', 'role' => 'Home Renovation Client'],
+                        ['quote' => '"Honest, hardworking, and detail-oriented. They gave us a fair quote, stuck to it, and delivered a home we\'re proud to live in."', 'name' => 'Robert L.', 'role' => 'New Home Build Client'],
                     ] as $review)
                         <div class="flex flex-col rounded-2xl border border-dove-dark bg-white p-6 shadow-sm sm:p-8">
                             <div class="mb-4 flex text-yellow-400">
@@ -531,7 +531,7 @@
                             Ready to Start<br>Your Project?
                         </h2>
                         <p class="mx-auto mt-4 max-w-lg text-sm text-zinc-400 sm:mt-5 sm:text-base">
-                            Whether it's your dream home or your next commercial development, we'd love to hear from you. Request a free consultation and estimate today.
+                            Whether it's a new home, a renovation, or a commercial project — we'd love to hear what you have in mind. Reach out for a free consultation and estimate.
                         </p>
 
                         <div class="mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:grid-cols-3 sm:gap-4">

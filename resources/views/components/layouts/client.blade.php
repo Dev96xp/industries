@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
 <head>
     @include('partials.head')
     <title>My Account — {{ config('app.name') }}</title>
 </head>
-<body class="min-h-screen bg-zinc-50 antialiased">
+<body class="min-h-screen bg-white antialiased dark:bg-zinc-800">
 
     {{-- Header --}}
     <header class="fixed top-0 z-50 w-full border-b border-white/10 backdrop-blur-md" style="background-color: rgba(43,45,48,0.95);">
