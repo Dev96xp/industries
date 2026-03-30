@@ -48,7 +48,11 @@
                 {{-- Desktop CTA --}}
                 <div class="hidden sm:flex sm:items-center sm:gap-3">
                     @auth
-                        <a href="{{ route('dashboard') }}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">Dashboard</a>
+                        @if(auth()->user()->hasRole('client'))
+                            <a href="{{ route('client.profile') }}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">My Profile</a>
+                        @else
+                            <a href="{{ route('dashboard') }}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">Dashboard</a>
+                        @endif
                     @else
                         <a href="{{ route('login') }}" class="hidden text-sm font-medium text-zinc-400 transition hover:text-white lg:block">Sign in</a>
                         <a href="#contact" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">Get a Quote</a>
@@ -92,7 +96,11 @@
                 <a @click="open = false" href="#contact" class="py-3 text-sm font-medium text-zinc-300 hover:text-white">Contact</a>
                 <div class="mt-4 flex flex-col gap-2">
                     @auth
-                        <a href="{{ route('dashboard') }}" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">Dashboard</a>
+                        @if(auth()->user()->hasRole('client'))
+                            <a href="{{ route('client.profile') }}" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">My Profile</a>
+                        @else
+                            <a href="{{ route('dashboard') }}" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">Dashboard</a>
+                        @endif
                     @else
                         <a href="{{ route('login') }}" class="rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300">Sign in</a>
                         <a href="#contact" @click="open = false" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">Get a Quote</a>

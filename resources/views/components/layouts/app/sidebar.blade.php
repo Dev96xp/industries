@@ -14,10 +14,29 @@
             <flux:navlist variant="outline">
                 <flux:navlist.group heading="Platform" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>Dashboard</flux:navlist.item>
+                    @if(auth()->user()->hasRole('worker'))
+                        <flux:navlist.item icon="clock" :href="route('worker.timeclock')" :current="request()->routeIs('worker.timeclock')" wire:navigate>Time Clock</flux:navlist.item>
+                    @endif
                 </flux:navlist.group>
                 <flux:navlist.group heading="Website" class="grid">
-                    <flux:navlist.item icon="photo" :href="route('admin.photos')" :current="request()->routeIs('admin.photos')" wire:navigate>Photos</flux:navlist.item>
-                    <flux:navlist.item icon="building-office" :href="route('admin.company-settings')" :current="request()->routeIs('admin.company-settings')" wire:navigate>Company Info</flux:navlist.item>
+                    @can('manage time entries')
+                        <flux:navlist.item icon="clock" :href="route('admin.time-entries')" :current="request()->routeIs('admin.time-entries*')" wire:navigate>Time Entries</flux:navlist.item>
+                    @endcan
+                    @can('manage quotes')
+                        <flux:navlist.item icon="document-text" :href="route('admin.quotes')" :current="request()->routeIs('admin.quotes*')" wire:navigate>Quotes</flux:navlist.item>
+                    @endcan
+                    @can('manage projects')
+                        <flux:navlist.item icon="folder" :href="route('admin.projects')" :current="request()->routeIs('admin.projects*')" wire:navigate>Projects</flux:navlist.item>
+                    @endcan
+                    @can('manage photos')
+                        <flux:navlist.item icon="photo" :href="route('admin.photos')" :current="request()->routeIs('admin.photos')" wire:navigate>Photos</flux:navlist.item>
+                    @endcan
+                    @can('manage company settings')
+                        <flux:navlist.item icon="building-office" :href="route('admin.company-settings')" :current="request()->routeIs('admin.company-settings')" wire:navigate>Company Info</flux:navlist.item>
+                    @endcan
+                    @can('manage users')
+                        <flux:navlist.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>Users</flux:navlist.item>
+                    @endcan
                 </flux:navlist.group>
             </flux:navlist>
 
