@@ -44,7 +44,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             <p class="mt-3 text-sm text-zinc-400">No quotes yet. Create your first one.</p>
         </div>
     @else
-        <div class="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 overflow-hidden">
+        <div class="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-zinc-100 dark:border-zinc-800">
