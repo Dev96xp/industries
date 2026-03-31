@@ -7,9 +7,11 @@ use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
-    public string $filterProject = '';
-    public string $filterWorker  = '';
-    public string $filterDate    = '';
+    public string $filterProject  = '';
+    public string $filterWorker   = '';
+    public string $filterDate     = '';
+    public string $filterDateFrom = '';
+    public string $filterDateTo   = '';
 
     public function with(): array
     {
@@ -26,6 +28,14 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         if ($this->filterDate) {
             $query->whereDate('clock_in_at', $this->filterDate);
+        }
+
+        if ($this->filterDateFrom) {
+            $query->whereDate('clock_in_at', '>=', $this->filterDateFrom);
+        }
+
+        if ($this->filterDateTo) {
+            $query->whereDate('clock_in_at', '<=', $this->filterDateTo);
         }
 
         $entries = $query->get();
@@ -49,6 +59,14 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:heading size="xl">Time Entries</flux:heading>
             <flux:text class="mt-1 text-zinc-500">Worker clock-in/out records.</flux:text>
         </div>
+        <a href="{{ route('admin.time-entries.report', array_filter([
+            'worker_id'  => $filterWorker,
+            'project_id' => $filterProject,
+            'date_from'  => $filterDateFrom,
+            'date_to'    => $filterDateTo,
+        ])) }}" target="_blank">
+            <flux:button variant="ghost" icon="printer">Report</flux:button>
+        </a>
     </div>
 
     {{-- Filters --}}
@@ -69,7 +87,13 @@ new #[Layout('components.layouts.app')] class extends Component {
             @endforeach
         </flux:select>
 
-        <flux:input wire:model.live="filterDate" type="date" placeholder="Filter by date" />
+        <flux:input wire:model.live="filterDate" type="date" placeholder="Filter by exact date" />
+    </div>
+
+    {{-- Date range --}}
+    <div class="grid gap-3 sm:grid-cols-2">
+        <flux:input wire:model.live="filterDateFrom" type="date" label="From date" />
+        <flux:input wire:model.live="filterDateTo" type="date" label="To date" />
     </div>
 
     {{-- Summary --}}

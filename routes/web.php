@@ -4,6 +4,9 @@ use App\Models\CompanySetting;
 use App\Models\Photo;
 use App\Models\Project;
 use App\Models\Quote;
+use App\Models\TimeEntry;
+use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -67,6 +70,41 @@ Route::middleware(['auth', 'permission:manage projects'])->group(function () {
 
 Route::middleware(['auth', 'permission:manage time entries'])->group(function () {
     Volt::route('admin/time-entries', 'admin.time-entries.index')->name('admin.time-entries');
+
+    Route::get('admin/time-entries/report', function (Request $request) {
+        $query = TimeEntry::with(['worker', 'project'])
+            ->orderByDesc('clock_in_at');
+
+        $worker = null;
+        $project = null;
+
+        if ($request->worker_id) {
+            $query->where('user_id', $request->worker_id);
+            $worker = User::find($request->worker_id);
+        }
+
+        if ($request->project_id) {
+            $query->where('project_id', $request->project_id);
+            $project = Project::find($request->project_id);
+        }
+
+        if ($request->date_from) {
+            $query->whereDate('clock_in_at', '>=', $request->date_from);
+        }
+
+        if ($request->date_to) {
+            $query->whereDate('clock_in_at', '<=', $request->date_to);
+        }
+
+        return view('admin.time-entries.report', [
+            'entries' => $query->get(),
+            'company' => CompanySetting::current(),
+            'worker' => $worker,
+            'project' => $project,
+            'dateFrom' => $request->date_from,
+            'dateTo' => $request->date_to,
+        ]);
+    })->name('admin.time-entries.report');
 });
 
 Route::middleware(['auth', 'permission:manage quotes'])->group(function () {
