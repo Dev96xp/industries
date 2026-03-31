@@ -54,13 +54,6 @@
     }
 }
 
-@media (max-width: 639px) {
-    [data-flux-main] {
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-    }
-}
-
 [data-flux-field] {
     @apply grid gap-2;
 }

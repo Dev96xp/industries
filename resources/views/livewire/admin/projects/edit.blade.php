@@ -262,7 +262,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-6 p-6">
+<div class="flex h-full w-full flex-1 flex-col gap-6 p-1 sm:p-6">
 
     {{-- Header --}}
     <div class="flex items-center justify-between gap-3">
