@@ -28,6 +28,9 @@
                     @can('manage projects')
                         <flux:navlist.item icon="folder" :href="route('admin.projects')" :current="request()->routeIs('admin.projects*')" wire:navigate>Projects</flux:navlist.item>
                     @endcan
+                    @can('manage contractors')
+                        <flux:navlist.item icon="building-office-2" :href="route('admin.contractors')" :current="request()->routeIs('admin.contractors*')" wire:navigate>Contractors</flux:navlist.item>
+                    @endcan
                     @can('manage photos')
                         <flux:navlist.item icon="photo" :href="route('admin.photos')" :current="request()->routeIs('admin.photos')" wire:navigate>Photos</flux:navlist.item>
                     @endcan

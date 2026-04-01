@@ -11,14 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('project_photos', function (Blueprint $table) {
+        Schema::create('project_subtasks', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->string('path');
-            $table->string('disk')->default('public');
-            $table->string('mime_type')->nullable();
-            $table->string('original_name')->nullable();
-            $table->string('caption')->nullable();
+            $table->foreignId('project_task_id')->constrained()->cascadeOnDelete();
+            $table->string('name');
+            $table->string('status')->default('pending');
+            $table->foreignId('assigned_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->boolean('is_completed')->default(false);
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
         });
@@ -29,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('project_photos');
+        Schema::dropIfExists('project_subtasks');
     }
 };

@@ -19,6 +19,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage company settings',
             'manage users',
             'manage projects',
+            'manage contractors',
             'manage quotes',
             'manage time entries',
         ];
@@ -42,6 +43,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage photos',
             'manage company settings',
             'manage projects',
+            'manage contractors',
             'manage quotes',
             'manage time entries',
         ]);

@@ -17,6 +17,8 @@ class ProjectPhoto extends Model
         'project_id',
         'path',
         'disk',
+        'mime_type',
+        'original_name',
         'caption',
         'sort_order',
     ];
@@ -29,5 +31,10 @@ class ProjectPhoto extends Model
     public function url(): string
     {
         return Storage::disk($this->disk)->url($this->path);
+    }
+
+    public function isPdf(): bool
+    {
+        return $this->mime_type === 'application/pdf';
     }
 }

@@ -4,6 +4,9 @@ use App\Models\Project;
 use App\Models\ProjectExpense;
 use App\Models\ProjectIncome;
 use App\Models\ProjectPhoto;
+use App\Models\ProjectSubtask;
+use App\Models\Contractor;
+use App\Models\ProjectTask;
 use App\Models\User;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -48,8 +51,24 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string  $incomePaymentMethod  = 'other';
     public ?int    $editingIncomeId      = null;
 
+    // Task form
+    public string  $taskName             = '';
+    public string  $taskDescription      = '';
+    public string  $taskStartDate        = '';
+    public string  $taskEndDate          = '';
+    public string  $taskStatus           = 'pending';
+    public string  $taskAssignedType     = 'internal';
+    public int|string|null $taskAssignedUserId = null;
+    public string  $taskAssignedCompany    = '';
+    public ?int    $taskAssignedContractorId = null;
+    public string  $taskNotes            = '';
+    public ?int    $editingTaskId        = null;
+    public string  $subtaskName           = '';
+    public string  $subtaskStatus         = 'pending';
+    public ?int    $subtaskAssignedUserId = null;
+
     /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
-    #[Validate(['uploads.*' => 'image|max:10240'])]
+    #[Validate(['uploads.*' => 'mimes:jpg,jpeg,png,gif,webp,pdf|max:10240'])]
     public array $uploads = [];
 
     public function mount(Project $project): void
@@ -95,15 +114,17 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function savePhotos(): void
     {
-        $this->validate(['uploads.*' => 'image|max:10240']);
+        $this->validate(['uploads.*' => 'mimes:jpg,jpeg,png,gif,webp,pdf|max:10240']);
 
         foreach ($this->uploads as $file) {
             $path = $file->store('project-photos', 'public');
 
             ProjectPhoto::create([
-                'project_id' => $this->project->id,
-                'path'       => $path,
-                'disk'       => 'public',
+                'project_id'    => $this->project->id,
+                'path'          => $path,
+                'disk'          => 'public',
+                'mime_type'     => $file->getMimeType(),
+                'original_name' => $file->getClientOriginalName(),
             ]);
         }
 
@@ -146,6 +167,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $this->resetExpenseForm();
+        $this->modal('expense-form')->close();
         $this->project->refresh();
     }
 
@@ -158,6 +180,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->expenseDate           = $expense->expense_date->format('Y-m-d');
         $this->expenseNotes          = $expense->notes ?? '';
         $this->expensePaymentMethod  = $expense->payment_method;
+        $this->modal('expense-form')->show();
     }
 
     public function deleteExpense(ProjectExpense $expense): void
@@ -166,9 +189,15 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->project->refresh();
     }
 
+    public function newExpense(): void
+    {
+        $this->resetExpenseForm();
+    }
+
     public function cancelExpenseEdit(): void
     {
         $this->resetExpenseForm();
+        $this->modal('expense-form')->close();
     }
 
     private function resetExpenseForm(): void
@@ -209,6 +238,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
 
         $this->resetIncomeForm();
+        $this->modal('income-form')->close();
         $this->project->refresh();
     }
 
@@ -221,6 +251,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->incomeDate           = $income->income_date->format('Y-m-d');
         $this->incomeNotes          = $income->notes ?? '';
         $this->incomePaymentMethod  = $income->payment_method;
+        $this->modal('income-form')->show();
     }
 
     public function deleteIncome(ProjectIncome $income): void
@@ -229,9 +260,15 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->project->refresh();
     }
 
+    public function newIncome(): void
+    {
+        $this->resetIncomeForm();
+    }
+
     public function cancelIncomeEdit(): void
     {
         $this->resetIncomeForm();
+        $this->modal('income-form')->close();
     }
 
     private function resetIncomeForm(): void
@@ -245,6 +282,156 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->editingIncomeId     = null;
     }
 
+    public function saveTask(): void
+    {
+        $this->taskAssignedUserId = $this->taskAssignedUserId ?: null;
+
+        $rules = [
+            'taskName'            => ['required', 'string', 'max:255'],
+            'taskDescription'     => ['nullable', 'string'],
+            'taskStartDate'       => ['required', 'date'],
+            'taskEndDate'         => ['required', 'date', 'after_or_equal:taskStartDate'],
+            'taskStatus'          => ['required', 'in:pending,in_progress,completed,delayed,cancelled'],
+            'taskAssignedType'    => ['required', 'in:internal,external'],
+            'taskAssignedUserId'  => ['nullable', 'required_if:taskAssignedType,internal', 'integer', 'exists:users,id'],
+            'taskAssignedContractorId' => ['nullable', 'required_if:taskAssignedType,external', 'exists:contractors,id'],
+            'taskNotes'           => ['nullable', 'string'],
+        ];
+
+        $validated = $this->validate($rules);
+
+        $data = [
+            'name'             => $validated['taskName'],
+            'description'      => $validated['taskDescription'] ?: null,
+            'start_date'       => $validated['taskStartDate'],
+            'end_date'         => $validated['taskEndDate'],
+            'status'           => $validated['taskStatus'],
+            'assigned_type'    => $validated['taskAssignedType'],
+            'assigned_user_id' => $validated['taskAssignedType'] === 'internal' ? ($validated['taskAssignedUserId'] ?: null) : null,
+            'contractor_id'    => $validated['taskAssignedType'] === 'external' ? ($validated['taskAssignedContractorId'] ?: null) : null,
+            'assigned_company' => null,
+            'notes'            => $validated['taskNotes'] ?: null,
+        ];
+
+        if ($this->editingTaskId) {
+            ProjectTask::findOrFail($this->editingTaskId)->update($data);
+        } else {
+            $data['sort_order'] = $this->project->tasks()->max('sort_order') + 1;
+            $this->project->tasks()->create($data);
+        }
+
+        $this->resetTaskForm();
+        $this->project->refresh();
+        $this->modal('task-form')->close();
+    }
+
+    public function editTask(ProjectTask $task): void
+    {
+        $this->editingTaskId       = $task->id;
+        $this->taskName            = $task->name;
+        $this->taskDescription     = $task->description ?? '';
+        $this->taskStartDate       = $task->start_date->format('Y-m-d');
+        $this->taskEndDate         = $task->end_date->format('Y-m-d');
+        $this->taskStatus          = $task->status;
+        $this->taskAssignedType         = $task->assigned_type;
+        $this->taskAssignedUserId       = $task->assigned_user_id;
+        $this->taskAssignedContractorId = $task->contractor_id;
+        $this->taskNotes           = $task->notes ?? '';
+        $this->modal('task-form')->show();
+    }
+
+    public function deleteTask(ProjectTask $task): void
+    {
+        $task->delete();
+        $this->project->refresh();
+    }
+
+    public function cancelTaskEdit(): void
+    {
+        $this->resetTaskForm();
+    }
+
+    public function addSubtask(): void
+    {
+        $this->validate([
+            'subtaskName'           => ['required', 'string', 'max:255'],
+            'subtaskStatus'         => ['required', 'in:pending,in_progress,completed,delayed,cancelled'],
+            'subtaskAssignedUserId' => ['nullable', 'exists:users,id'],
+        ]);
+
+        $task = ProjectTask::findOrFail($this->editingTaskId);
+
+        $task->subtasks()->create([
+            'name'             => $this->subtaskName,
+            'status'           => $this->subtaskStatus,
+            'assigned_user_id' => $this->subtaskAssignedUserId,
+            'sort_order'       => $task->subtasks()->max('sort_order') + 1,
+        ]);
+
+        $this->subtaskName           = '';
+        $this->subtaskStatus         = 'pending';
+        $this->subtaskAssignedUserId = null;
+    }
+
+    public function deleteSubtask(ProjectSubtask $subtask): void
+    {
+        $subtask->delete();
+    }
+
+    public function updateSubtaskAssignee(int $subtaskId, ?string $userId): void
+    {
+        ProjectSubtask::findOrFail($subtaskId)->update([
+            'assigned_user_id' => $userId ?: null,
+        ]);
+    }
+
+    public function cycleSubtaskStatus(ProjectSubtask $subtask): void
+    {
+        $next = match($subtask->status) {
+            'pending'     => 'in_progress',
+            'in_progress' => 'completed',
+            'completed'   => 'delayed',
+            'delayed'     => 'cancelled',
+            default       => 'pending',
+        };
+
+        $subtask->update(['status' => $next]);
+    }
+
+    public function cycleTaskStatus(ProjectTask $task): void
+    {
+        $next = match($task->status) {
+            'pending'     => 'in_progress',
+            'in_progress' => 'completed',
+            'completed'   => 'delayed',
+            default       => 'pending',
+        };
+
+        $task->update(['status' => $next]);
+        $this->project->refresh();
+    }
+
+    public function reorderTasks(int $taskId, int $position): void
+    {
+        ProjectTask::where('id', $taskId)
+            ->where('project_id', $this->project->id)
+            ->update(['sort_order' => $position]);
+    }
+
+    private function resetTaskForm(): void
+    {
+        $this->taskName            = '';
+        $this->taskDescription     = '';
+        $this->taskStartDate       = '';
+        $this->taskEndDate         = '';
+        $this->taskStatus          = 'pending';
+        $this->taskAssignedType    = 'internal';
+        $this->taskAssignedUserId       = null;
+        $this->taskAssignedContractorId = null;
+        $this->taskNotes                = '';
+        $this->editingTaskId       = null;
+    }
+
     public function with(): array
     {
         $clientRole = Role::where('name', 'client')->first();
@@ -256,6 +443,10 @@ new #[Layout('components.layouts.app')] class extends Component {
             'photos'       => $this->project->photos,
             'expenses'     => $this->project->expenses,
             'incomes'      => $this->project->incomes,
+            'tasks'        => $this->project->tasks()->with(['assignedUser', 'contractor'])->get(),
+            'subtasks'     => $this->editingTaskId ? ProjectTask::find($this->editingTaskId)?->subtasks()->with('assignedUser')->get() : collect(),
+            'staff'        => User::whereHas('roles', fn ($q) => $q->whereIn('name', ['superadmin', 'admin', 'editor', 'worker']))->orderBy('name')->get(),
+            'contractors'  => Contractor::where('is_active', true)->orderBy('company_name')->get(),
             'totalSpent'   => $this->project->expenses()->sum('amount'),
             'totalIncome'  => $this->project->incomes()->sum('amount'),
         ];
@@ -294,7 +485,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         {{-- Basic info --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Project Info</h3>
+            <h3 class="text-sm font-semibold text-yellow-400 dark:text-yellow-300 mb-4">Project Info</h3>
             <div class="flex flex-col gap-4">
                 <flux:input wire:model="name" label="Project Name" required />
                 <flux:textarea wire:model="description" label="Description" rows="3" />
@@ -340,7 +531,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             }}">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Worksite Location (GPS)</h3>
+                    <h3 class="text-sm font-semibold text-yellow-400 dark:text-yellow-300">Worksite Location (GPS)</h3>
                     <p class="text-xs text-zinc-400 mt-0.5">Used to verify workers are on-site when clocking in/out.</p>
                 </div>
                 <button type="button" @click="getLocation()" :disabled="locating"
@@ -384,20 +575,245 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:button wire:click="save" variant="primary">Save Changes</flux:button>
         </div>
 
+        {{-- Tasks / Schedule --}}
+        <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-yellow-400 dark:text-yellow-300">Work Schedule</h3>
+                <flux:modal.trigger name="task-form">
+                    <flux:button size="sm" icon="plus">Add Task</flux:button>
+                </flux:modal.trigger>
+            </div>
+
+            {{-- Task timeline --}}
+            @if($tasks->isNotEmpty())
+                <div class="space-y-2"
+                    x-sort="$wire.reorderTasks($item, $position)"
+                >
+                    @foreach($tasks as $task)
+                        @php
+                            $statusColor = match($task->status) {
+                                'in_progress' => 'blue',
+                                'completed'   => 'green',
+                                'delayed'     => 'red',
+                                default       => 'zinc',
+                            };
+                            $statusLabel = match($task->status) {
+                                'in_progress' => 'In Progress',
+                                'completed'   => 'Completed',
+                                'delayed'     => 'Delayed',
+                                default       => 'Pending',
+                            };
+                        @endphp
+                        <div x-sort:item="{{ $task->id }}" class="flex items-start gap-3 rounded-xl border border-zinc-100 dark:border-zinc-800 px-4 py-3 cursor-default">
+                            {{-- Drag handle --}}
+                            <div x-sort:handle class="mt-1 shrink-0 cursor-grab text-zinc-300 hover:text-zinc-400 dark:text-zinc-600 dark:hover:text-zinc-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM8.5 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM8.5 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/></svg>
+                            </div>
+                            {{-- Status dot --}}
+                            <div class="mt-1 shrink-0">
+                                @if($task->status === 'completed')
+                                    <div class="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                                        <svg class="size-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                                    </div>
+                                @elseif($task->status === 'in_progress')
+                                    <div class="size-5 rounded-full border-2 border-blue-500 bg-blue-100 dark:bg-blue-900/30"></div>
+                                @elseif($task->status === 'delayed')
+                                    <div class="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                                        <svg class="size-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z"/></svg>
+                                    </div>
+                                @else
+                                    <div class="size-5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800"></div>
+                                @endif
+                            </div>
+
+                            {{-- Info --}}
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $task->name }}</span>
+                                    <button wire:click="cycleTaskStatus({{ $task->id }})" title="Click to change status" class="cursor-pointer">
+                                        <flux:badge size="sm" color="{{ $statusColor }}">{{ $statusLabel }}</flux:badge>
+                                    </button>
+                                </div>
+                                <p class="text-xs text-zinc-400 mt-0.5">
+                                    {{ $task->start_date->format('M d') }} – {{ $task->end_date->format('M d, Y') }}
+                                    &middot;
+                                    @if($task->isExternal())
+                                        <span class="text-amber-600 dark:text-amber-400">{{ $task->assigned_company }}</span>
+                                    @else
+                                        {{ $task->assignedUser?->name ?? '—' }}
+                                    @endif
+                                </p>
+                                @if($task->notes)
+                                    <p class="text-xs text-zinc-400 mt-0.5 italic">{{ $task->notes }}</p>
+                                @endif
+                            </div>
+
+                            {{-- Actions --}}
+                            <div class="flex shrink-0 gap-1">
+                                <a href="{{ route('admin.projects.tasks.report', [$project, $task]) }}" target="_blank" class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
+                                    <flux:icon.printer class="size-3.5" />
+                                </a>
+                                <button wire:click="editTask({{ $task->id }})" class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
+                                    <flux:icon.pencil class="size-3.5" />
+                                </button>
+                                <button wire:click="deleteTask({{ $task->id }})" wire:confirm="Delete this task?" class="p-1 text-zinc-400 hover:text-red-500 transition">
+                                    <flux:icon.trash class="size-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="text-sm text-zinc-400">No tasks yet. Add the first one.</p>
+            @endif
+        </div>
+
+        {{-- Task Modal --}}
+        <flux:modal name="task-form" class="w-full max-w-xl" :dismissible="false" @cancel="$wire.cancelTaskEdit()">
+            <div class="space-y-4">
+                <flux:heading size="lg">{{ $editingTaskId ? 'Edit Task' : 'New Task' }}</flux:heading>
+
+                <flux:input wire:model="taskName" label="Task Name" placeholder="e.g. Foundation work" />
+                <flux:textarea wire:model="taskDescription" label="Description (optional)" rows="2" />
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <flux:input wire:model="taskStartDate" label="Start Date" type="date" />
+                    <flux:input wire:model="taskEndDate" label="End Date" type="date" />
+                </div>
+
+                <flux:select wire:model="taskStatus" label="Status">
+                    <flux:select.option value="pending">Pending</flux:select.option>
+                    <flux:select.option value="in_progress">In Progress</flux:select.option>
+                    <flux:select.option value="completed">Completed</flux:select.option>
+                    <flux:select.option value="delayed">Delayed</flux:select.option>
+                </flux:select>
+
+                {{-- Assignment type --}}
+                <div>
+                    <p class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Assign to</p>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" wire:model.live="taskAssignedType" value="internal" class="accent-blue-600" />
+                            <span class="text-sm text-zinc-700 dark:text-zinc-300">Staff interno</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" wire:model.live="taskAssignedType" value="external" class="accent-blue-600" />
+                            <span class="text-sm text-zinc-700 dark:text-zinc-300">Compañía externa</span>
+                        </label>
+                    </div>
+                </div>
+
+                @if($taskAssignedType === 'internal')
+                    <div wire:key="assign-internal">
+                        <flux:select wire:model="taskAssignedUserId" label="Staff Member">
+                            <flux:select.option value="">— Select person —</flux:select.option>
+                            @foreach($staff as $member)
+                                <flux:select.option value="{{ $member->id }}">{{ $member->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    </div>
+                @else
+                    <div wire:key="assign-external">
+                        <flux:select wire:model="taskAssignedContractorId" label="Contractor">
+                            <flux:select.option value="">— Select contractor —</flux:select.option>
+                            @foreach($contractors as $contractor)
+                                <flux:select.option value="{{ $contractor->id }}">
+                                    {{ $contractor->company_name }}@if($contractor->specialty) — {{ $contractor->specialty }}@endif
+                                </flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    </div>
+                @endif
+
+                <flux:input wire:model="taskNotes" label="Notes (optional)" placeholder="Additional details..." />
+
+                {{-- Subtasks (only when editing an existing task) --}}
+                @if($editingTaskId)
+                    <div class="border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                        <p class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Subtasks</p>
+
+                        @if($subtasks->isNotEmpty())
+                            <ul class="mb-3 space-y-1">
+                                @foreach($subtasks as $subtask)
+                                    @php
+                                        $subColor = match($subtask->status) {
+                                            'in_progress' => 'blue',
+                                            'completed'   => 'green',
+                                            'delayed'     => 'yellow',
+                                            'cancelled'   => 'red',
+                                            default       => 'zinc',
+                                        };
+                                        $subLabel = match($subtask->status) {
+                                            'in_progress' => 'In Progress',
+                                            'completed'   => 'Completed',
+                                            'delayed'     => 'Delayed',
+                                            'cancelled'   => 'Cancelled',
+                                            default       => 'Pending',
+                                        };
+                                    @endphp
+                                    <li class="flex items-center gap-2 rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800">
+                                        <span class="flex-1 text-sm text-zinc-700 dark:text-zinc-200">{{ $subtask->name }}</span>
+                                        <button wire:click="cycleSubtaskStatus({{ $subtask->id }})" title="Click to change status" class="cursor-pointer">
+                                            <flux:badge size="sm" color="{{ $subColor }}">{{ $subLabel }}</flux:badge>
+                                        </button>
+                                        <select
+                                            x-on:change="$wire.updateSubtaskAssignee({{ $subtask->id }}, $event.target.value)"
+                                            class="rounded-md border-0 bg-transparent py-0.5 pl-1 pr-6 text-xs text-zinc-500 dark:text-zinc-400 ring-1 ring-zinc-200 dark:ring-zinc-700 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                        >
+                                            <option value="">— Unassigned —</option>
+                                            @foreach($staff as $member)
+                                                <option value="{{ $member->id }}" {{ $subtask->assigned_user_id == $member->id ? 'selected' : '' }}>{{ $member->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button wire:click="deleteSubtask({{ $subtask->id }})" wire:confirm="Delete this subtask?" class="text-zinc-300 hover:text-red-500 transition">
+                                            <flux:icon.trash class="size-3.5" />
+                                        </button>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+
+                        <div class="flex gap-2">
+                            <flux:input wire:model="subtaskName" placeholder="New subtask name..." class="flex-1" />
+                            <flux:button wire:click="addSubtask" size="sm" icon="plus">Add</flux:button>
+                        </div>
+                    </div>
+                @endif
+
+                <div class="flex gap-2 pt-1">
+                    <flux:button wire:click="saveTask" variant="primary">
+                        {{ $editingTaskId ? 'Update Task' : 'Save Task' }}
+                    </flux:button>
+                    <flux:modal.close>
+                        <flux:button wire:click="cancelTaskEdit" variant="ghost">Cancel</flux:button>
+                    </flux:modal.close>
+                </div>
+            </div>
+        </flux:modal>
+
         {{-- Income --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Income</h3>
-                @if($totalIncome > 0)
-                    <span class="text-xs font-semibold text-green-600 dark:text-green-400">
-                        Total: ${{ number_format($totalIncome, 0) }}
-                    </span>
-                @endif
+                <h3 class="text-sm font-semibold text-yellow-400 dark:text-yellow-300">Income</h3>
+                <div class="flex items-center gap-3">
+                    @if($totalIncome > 0)
+                        <span class="text-xs font-semibold text-green-600 dark:text-green-400">
+                            Total: ${{ number_format($totalIncome, 0) }}
+                        </span>
+                    @endif
+                    <flux:modal.trigger name="income-form">
+                        <flux:button size="sm" variant="primary" icon="plus" wire:click="newIncome">
+                            Add Income
+                        </flux:button>
+                    </flux:modal.trigger>
+                </div>
             </div>
 
             {{-- Income list --}}
-            @if($incomes->isNotEmpty())
-                <div class="mb-5 divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
+            @if($incomes->isEmpty())
+                <p class="text-sm text-zinc-400 text-center py-4">No income entries yet.</p>
+            @else
+                <div class="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
                     @foreach($incomes as $income)
                         <div class="flex items-center justify-between gap-3 px-4 py-3">
                             <div class="min-w-0 flex-1">
@@ -425,58 +841,65 @@ new #[Layout('components.layouts.app')] class extends Component {
                     @endforeach
                 </div>
             @endif
+        </div>
 
-            {{-- Add / Edit income form --}}
-            <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-                <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-                    {{ $editingIncomeId ? 'Edit Income' : 'Add Income' }}
-                </h4>
-                <div class="flex flex-col gap-3">
-                    <flux:input wire:model="incomeDescription" label="Description" placeholder="e.g. Bank loan disbursement" />
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <flux:select wire:model="incomeSource" label="Source">
-                            <flux:select.option value="bank_loan">Bank Loan</flux:select.option>
-                            <flux:select.option value="partner">Partner</flux:select.option>
-                            <flux:select.option value="personal">Personal</flux:select.option>
-                            <flux:select.option value="client_payment">Client Payment</flux:select.option>
-                            <flux:select.option value="investor">Investor</flux:select.option>
-                            <flux:select.option value="other">Other</flux:select.option>
-                        </flux:select>
-                        <flux:select wire:model="incomePaymentMethod" label="Payment Method">
-                            <flux:select.option value="cash">Cash</flux:select.option>
-                            <flux:select.option value="check">Check</flux:select.option>
-                            <flux:select.option value="visa">Visa</flux:select.option>
-                            <flux:select.option value="mastercard">Mastercard</flux:select.option>
-                            <flux:select.option value="bank_transfer">Bank Transfer</flux:select.option>
-                            <flux:select.option value="other">Other</flux:select.option>
-                        </flux:select>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <flux:input wire:model="incomeAmount" label="Amount ($)" type="number" step="0.01" placeholder="0.00" />
-                        <flux:input wire:model="incomeDate" label="Date" type="date" />
-                    </div>
-                    <flux:input wire:model="incomeNotes" label="Notes (optional)" placeholder="Additional details..." />
-                    <div class="flex gap-2 pt-1">
-                        <flux:button wire:click="saveIncome" variant="primary" size="sm">
-                            {{ $editingIncomeId ? 'Update Income' : 'Add Income' }}
-                        </flux:button>
-                        @if($editingIncomeId)
-                            <flux:button wire:click="cancelIncomeEdit" variant="ghost" size="sm">Cancel</flux:button>
-                        @endif
-                    </div>
+        {{-- Income Modal --}}
+        <flux:modal name="income-form" class="w-full max-w-lg" :dismissible="false" @cancel="$wire.cancelIncomeEdit()">
+            <div class="flex flex-col gap-4 p-1">
+                <flux:heading size="lg">{{ $editingIncomeId ? 'Edit Income' : 'Add Income' }}</flux:heading>
+
+                <flux:input wire:model="incomeDescription" label="Description" placeholder="e.g. Bank loan disbursement" />
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <flux:select wire:model="incomeSource" label="Source">
+                        <flux:select.option value="bank_loan">Bank Loan</flux:select.option>
+                        <flux:select.option value="partner">Partner</flux:select.option>
+                        <flux:select.option value="personal">Personal</flux:select.option>
+                        <flux:select.option value="client_payment">Client Payment</flux:select.option>
+                        <flux:select.option value="investor">Investor</flux:select.option>
+                        <flux:select.option value="other">Other</flux:select.option>
+                    </flux:select>
+                    <flux:select wire:model="incomePaymentMethod" label="Payment Method">
+                        <flux:select.option value="cash">Cash</flux:select.option>
+                        <flux:select.option value="check">Check</flux:select.option>
+                        <flux:select.option value="visa">Visa</flux:select.option>
+                        <flux:select.option value="mastercard">Mastercard</flux:select.option>
+                        <flux:select.option value="bank_transfer">Bank Transfer</flux:select.option>
+                        <flux:select.option value="other">Other</flux:select.option>
+                    </flux:select>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <flux:input wire:model="incomeAmount" label="Amount ($)" type="number" step="0.01" placeholder="0.00" />
+                    <flux:input wire:model="incomeDate" label="Date" type="date" />
+                </div>
+                <flux:input wire:model="incomeNotes" label="Notes (optional)" placeholder="Additional details..." />
+
+                <div class="flex gap-2 pt-1">
+                    <flux:button wire:click="saveIncome" variant="primary">
+                        {{ $editingIncomeId ? 'Update Income' : 'Add Income' }}
+                    </flux:button>
+                    <flux:modal.close>
+                        <flux:button wire:click="cancelIncomeEdit" variant="ghost">Cancel</flux:button>
+                    </flux:modal.close>
                 </div>
             </div>
-        </div>
+        </flux:modal>
 
         {{-- Expenses --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Expenses</h3>
-                @if($project->budget)
-                    <span class="text-xs text-zinc-400">
-                        Budget: <span class="font-semibold text-zinc-700 dark:text-zinc-200">${{ number_format($project->budget, 0) }}</span>
-                    </span>
-                @endif
+                <h3 class="text-sm font-semibold text-yellow-400 dark:text-yellow-300">Expenses</h3>
+                <div class="flex items-center gap-3">
+                    @if($project->budget)
+                        <span class="text-xs text-zinc-400">
+                            Budget: <span class="font-semibold text-zinc-700 dark:text-zinc-200">${{ number_format($project->budget, 0) }}</span>
+                        </span>
+                    @endif
+                    <flux:modal.trigger name="expense-form">
+                        <flux:button size="sm" variant="primary" icon="plus" wire:click="newExpense">
+                            Add Expense
+                        </flux:button>
+                    </flux:modal.trigger>
+                </div>
             </div>
 
             {{-- Budget progress bar --}}
@@ -515,8 +938,10 @@ new #[Layout('components.layouts.app')] class extends Component {
             @endif
 
             {{-- Expense list --}}
-            @if($expenses->isNotEmpty())
-                <div class="mb-5 divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
+            @if($expenses->isEmpty())
+                <p class="text-sm text-zinc-400 text-center py-4">No expense entries yet.</p>
+            @else
+                <div class="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
                     @foreach($expenses as $expense)
                         <div class="flex items-center justify-between gap-3 px-4 py-3">
                             <div class="min-w-0 flex-1">
@@ -544,81 +969,148 @@ new #[Layout('components.layouts.app')] class extends Component {
                     @endforeach
                 </div>
             @endif
+        </div>
 
-            {{-- Add / Edit expense form --}}
-            <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
-                <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-                    {{ $editingExpenseId ? 'Edit Expense' : 'Add Expense' }}
-                </h4>
-                <div class="flex flex-col gap-3">
-                    <flux:input wire:model="expenseDescription" label="Description" placeholder="e.g. Concrete delivery" />
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <flux:select wire:model="expenseCategory" label="Category">
-                            <flux:select.option value="materials">Materials</flux:select.option>
-                            <flux:select.option value="labor">Labor</flux:select.option>
-                            <flux:select.option value="equipment">Equipment</flux:select.option>
-                            <flux:select.option value="subcontractors">Subcontractors</flux:select.option>
-                            <flux:select.option value="permits">Permits</flux:select.option>
-                            <flux:select.option value="other">Other</flux:select.option>
-                        </flux:select>
-                        <flux:select wire:model="expensePaymentMethod" label="Payment Method">
-                            <flux:select.option value="cash">Cash</flux:select.option>
-                            <flux:select.option value="check">Check</flux:select.option>
-                            <flux:select.option value="visa">Visa</flux:select.option>
-                            <flux:select.option value="mastercard">Mastercard</flux:select.option>
-                            <flux:select.option value="bank_transfer">Bank Transfer</flux:select.option>
-                            <flux:select.option value="other">Other</flux:select.option>
-                        </flux:select>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <flux:input wire:model="expenseAmount" label="Amount ($)" type="number" step="0.01" placeholder="0.00" />
-                        <flux:input wire:model="expenseDate" label="Date" type="date" />
-                    </div>
-                    <flux:input wire:model="expenseNotes" label="Notes (optional)" placeholder="Additional details..." />
-                    <div class="flex gap-2 pt-1">
-                        <flux:button wire:click="saveExpense" variant="primary" size="sm">
-                            {{ $editingExpenseId ? 'Update Expense' : 'Add Expense' }}
-                        </flux:button>
-                        @if($editingExpenseId)
-                            <flux:button wire:click="cancelExpenseEdit" variant="ghost" size="sm">Cancel</flux:button>
-                        @endif
-                    </div>
+        {{-- Expense Modal --}}
+        <flux:modal name="expense-form" class="w-full max-w-lg" :dismissible="false" @cancel="$wire.cancelExpenseEdit()">
+            <div class="flex flex-col gap-4 p-1">
+                <flux:heading size="lg">{{ $editingExpenseId ? 'Edit Expense' : 'Add Expense' }}</flux:heading>
+
+                <flux:input wire:model="expenseDescription" label="Description" placeholder="e.g. Concrete delivery" />
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <flux:select wire:model="expenseCategory" label="Category">
+                        <flux:select.option value="materials">Materials</flux:select.option>
+                        <flux:select.option value="labor">Labor</flux:select.option>
+                        <flux:select.option value="equipment">Equipment</flux:select.option>
+                        <flux:select.option value="subcontractors">Subcontractors</flux:select.option>
+                        <flux:select.option value="permits">Permits</flux:select.option>
+                        <flux:select.option value="other">Other</flux:select.option>
+                    </flux:select>
+                    <flux:select wire:model="expensePaymentMethod" label="Payment Method">
+                        <flux:select.option value="cash">Cash</flux:select.option>
+                        <flux:select.option value="check">Check</flux:select.option>
+                        <flux:select.option value="visa">Visa</flux:select.option>
+                        <flux:select.option value="mastercard">Mastercard</flux:select.option>
+                        <flux:select.option value="bank_transfer">Bank Transfer</flux:select.option>
+                        <flux:select.option value="other">Other</flux:select.option>
+                    </flux:select>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <flux:input wire:model="expenseAmount" label="Amount ($)" type="number" step="0.01" placeholder="0.00" />
+                    <flux:input wire:model="expenseDate" label="Date" type="date" />
+                </div>
+                <flux:input wire:model="expenseNotes" label="Notes (optional)" placeholder="Additional details..." />
+
+                <div class="flex gap-2 pt-1">
+                    <flux:button wire:click="saveExpense" variant="primary">
+                        {{ $editingExpenseId ? 'Update Expense' : 'Add Expense' }}
+                    </flux:button>
+                    <flux:modal.close>
+                        <flux:button wire:click="cancelExpenseEdit" variant="ghost">Cancel</flux:button>
+                    </flux:modal.close>
                 </div>
             </div>
-        </div>
+        </flux:modal>
 
         {{-- Photos --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Project Photos</h3>
+            <h3 class="text-sm font-semibold text-yellow-400 dark:text-yellow-300 mb-4">Project Photos</h3>
 
-            {{-- Existing photos --}}
-            @if($photos->isNotEmpty())
+            {{-- Image gallery --}}
+            @if($photos->where('mime_type', '!=', 'application/pdf')->isNotEmpty())
                 <div class="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-3">
-                    @foreach($photos as $photo)
-                        <div class="group relative rounded-xl overflow-hidden">
-                            <img src="{{ $photo->url() }}" class="h-32 w-full object-cover" alt="">
+                    @foreach($photos->where('mime_type', '!=', 'application/pdf') as $photo)
+                        <div class="group relative overflow-hidden rounded-xl border border-zinc-100 dark:border-zinc-800">
+                            <img src="{{ $photo->url() }}" class="h-32 w-full object-cover transition group-hover:scale-105" alt="">
+                            <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition group-hover:opacity-100">
+                                <div class="flex items-center justify-end p-2">
+                                    <button
+                                        wire:click="deletePhoto({{ $photo->id }})"
+                                        wire:confirm="Remove this photo?"
+                                        class="flex size-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-red-500"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            {{-- PDF list --}}
+            @if($photos->where('mime_type', 'application/pdf')->isNotEmpty())
+                <div class="mb-5 divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    @foreach($photos->where('mime_type', 'application/pdf') as $photo)
+                        <div class="flex items-center gap-3 px-4 py-3">
+                            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/30">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                </svg>
+                            </div>
+                            <a href="{{ $photo->url() }}" target="_blank"
+                                class="min-w-0 flex-1 truncate text-sm font-medium text-zinc-700 dark:text-zinc-200 hover:text-blue-600 dark:hover:text-blue-400">
+                                {{ $photo->original_name ?? basename($photo->path) }}
+                            </a>
                             <button
                                 wire:click="deletePhoto({{ $photo->id }})"
-                                wire:confirm="Remove this photo?"
-                                class="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition group-hover:opacity-100"
+                                wire:confirm="Remove this file?"
+                                class="shrink-0 p-1.5 text-zinc-400 transition hover:text-red-500"
                             >
-                                <flux:icon.trash class="size-5 text-white" />
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                </svg>
                             </button>
                         </div>
                     @endforeach
                 </div>
             @endif
 
-            {{-- Upload new photos --}}
+            {{-- Upload new files --}}
             <div
                 x-data="{
                     uploading: false,
                     ready: false,
-                    uploadFiles(files) {
+                    compressImage(file, maxBytes = 900 * 1024) {
+                        return new Promise((resolve) => {
+                            if (!file.type.startsWith('image/') || file.size <= maxBytes) { resolve(file); return; }
+                            const img = new Image();
+                            const url = URL.createObjectURL(file);
+                            img.onload = () => {
+                                URL.revokeObjectURL(url);
+                                const canvas = document.createElement('canvas');
+                                let { width, height } = img;
+                                const scale = Math.sqrt(maxBytes / file.size);
+                                width = Math.round(width * scale);
+                                height = Math.round(height * scale);
+                                canvas.width = width;
+                                canvas.height = height;
+                                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                                const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                                let quality = 0.85;
+                                const tryCompress = () => {
+                                    canvas.toBlob((blob) => {
+                                        if (blob.size <= maxBytes || quality <= 0.3) {
+                                            resolve(new File([blob], file.name, { type: mime }));
+                                        } else {
+                                            quality -= 0.1;
+                                            canvas.toBlob((b) => resolve(new File([b], file.name, { type: mime })), mime, quality);
+                                        }
+                                    }, mime, quality);
+                                };
+                                tryCompress();
+                            };
+                            img.src = url;
+                        });
+                    },
+                    async uploadFiles(files) {
                         if (!files.length) return;
                         this.uploading = true;
                         this.ready = false;
-                        $wire.uploadMultiple('uploads', files,
+                        const processed = await Promise.all(files.map(f => this.compressImage(f)));
+                        $wire.uploadMultiple('uploads', processed,
                             () => { this.uploading = false; this.ready = true; },
                             () => { this.uploading = false; },
                             () => {}
@@ -629,19 +1121,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @drop.prevent="uploadFiles(Array.from($event.dataTransfer.files))"
                 class="rounded-xl border-2 border-dashed border-zinc-200 p-6 text-center dark:border-zinc-700"
             >
-                <input type="file" multiple accept="image/*" class="hidden" id="project-photo-input"
+                <input type="file" multiple accept="image/*,application/pdf" class="hidden" id="project-photo-input"
                     @change="uploadFiles(Array.from($event.target.files))">
 
                 <label for="project-photo-input" class="cursor-pointer">
                     <flux:icon.photo class="mx-auto size-8 text-zinc-300" />
-                    <p class="mt-2 text-sm text-zinc-500">Drop photos here or <span class="text-blue-600 underline">browse</span></p>
-                    <p class="text-xs text-zinc-400">JPG, PNG, WEBP — max 10MB each</p>
+                    <p class="mt-2 text-sm text-zinc-500">Drop files here or <span class="text-blue-600 underline">browse</span></p>
+                    <p class="text-xs text-zinc-400">JPG, PNG, WEBP, PDF — max 10MB each</p>
                 </label>
 
                 <div x-show="uploading" class="mt-3 text-sm text-zinc-500">Uploading...</div>
 
                 <div x-show="ready" class="mt-3">
-                    <flux:button wire:click="savePhotos" variant="primary" size="sm">Save Photos</flux:button>
+                    <flux:button wire:click="savePhotos" variant="primary" size="sm">Save Files</flux:button>
                 </div>
             </div>
         </div>

@@ -63,6 +63,11 @@ class Project extends Model
         return $this->hasMany(ProjectIncome::class)->orderByDesc('income_date');
     }
 
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(ProjectTask::class)->orderBy('sort_order')->orderBy('start_date');
+    }
+
     public function timeEntries(): HasMany
     {
         return $this->hasMany(TimeEntry::class)->orderByDesc('clock_in_at');

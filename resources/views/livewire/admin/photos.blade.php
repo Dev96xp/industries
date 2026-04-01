@@ -108,20 +108,53 @@ new #[Layout('components.layouts.app')] class extends Component {
                     ready: false,
                     uploading: false,
                     progress: 0,
-                    uploadFiles(files) {
+                    compressImage(file, maxBytes = 900 * 1024) {
+                        return new Promise((resolve) => {
+                            if (file.size <= maxBytes) { resolve(file); return; }
+                            const img = new Image();
+                            const url = URL.createObjectURL(file);
+                            img.onload = () => {
+                                URL.revokeObjectURL(url);
+                                const canvas = document.createElement('canvas');
+                                let { width, height } = img;
+                                const scale = Math.sqrt(maxBytes / file.size);
+                                width = Math.round(width * scale);
+                                height = Math.round(height * scale);
+                                canvas.width = width;
+                                canvas.height = height;
+                                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                                const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                                let quality = 0.85;
+                                const tryCompress = () => {
+                                    canvas.toBlob((blob) => {
+                                        if (blob.size <= maxBytes || quality <= 0.3) {
+                                            resolve(new File([blob], file.name, { type: mime }));
+                                        } else {
+                                            quality -= 0.1;
+                                            canvas.toBlob((b) => resolve(new File([b], file.name, { type: mime })), mime, quality);
+                                        }
+                                    }, mime, quality);
+                                };
+                                tryCompress();
+                            };
+                            img.src = url;
+                        });
+                    },
+                    async uploadFiles(files) {
                         if (!files.length) return;
                         this.previews = [];
                         this.ready = false;
                         this.uploading = true;
                         this.progress = 0;
-                        files.forEach(file => {
+                        const compressed = await Promise.all(files.map(f => this.compressImage(f)));
+                        compressed.forEach(file => {
                             const reader = new FileReader();
                             reader.onload = (e) => this.previews.push(e.target.result);
                             reader.readAsDataURL(file);
                         });
                         $wire.uploadMultiple(
                             'uploads',
-                            files,
+                            compressed,
                             () => { this.uploading = false; this.ready = true; },
                             () => { this.uploading = false; alert('Upload failed. Please try again.'); },
                             (e) => { this.progress = e.detail.progress; }
@@ -308,11 +341,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                             <p class="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
                                 {{ $photo->title ?: pathinfo($photo->path, PATHINFO_FILENAME) }}
                             </p>
-                            @if($photo->category)
-                                <span class="mt-1 inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800">
-                                    {{ ucfirst($photo->category) }}
-                                </span>
-                            @endif
+                            <div class="mt-1 flex flex-wrap items-center gap-1">
+                                @if($photo->category)
+                                    <span class="inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800">
+                                        {{ ucfirst($photo->category) }}
+                                    </span>
+                                @endif
+                                @if($photo->size)
+                                    <span class="inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-400 dark:bg-zinc-800">
+                                        {{ $photo->size >= 1048576
+                                            ? number_format($photo->size / 1048576, 1) . ' MB'
+                                            : number_format($photo->size / 1024, 0) . ' KB' }}
+                                    </span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @endforeach

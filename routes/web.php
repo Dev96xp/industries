@@ -3,6 +3,7 @@
 use App\Models\CompanySetting;
 use App\Models\Photo;
 use App\Models\Project;
+use App\Models\ProjectTask;
 use App\Models\Quote;
 use App\Models\TimeEntry;
 use App\Models\User;
@@ -52,6 +53,16 @@ Route::middleware(['auth', 'permission:manage projects'])->group(function () {
     Volt::route('admin/projects', 'admin.projects.index')->name('admin.projects');
     Volt::route('admin/projects/create', 'admin.projects.create')->name('admin.projects.create');
     Volt::route('admin/projects/{project}/edit', 'admin.projects.edit')->name('admin.projects.edit');
+
+    Route::get('admin/projects/{project}/tasks/{task}/report', function (Project $project, ProjectTask $task) {
+        $task->load(['assignedUser', 'subtasks.assignedUser']);
+
+        return view('admin.projects.task-report', [
+            'project' => $project,
+            'task' => $task,
+            'company' => CompanySetting::current(),
+        ]);
+    })->name('admin.projects.tasks.report');
 
     Route::get('admin/projects/{project}/report', function (Project $project) {
         $project->load(['client', 'incomes', 'expenses']);
@@ -105,6 +116,12 @@ Route::middleware(['auth', 'permission:manage time entries'])->group(function ()
             'dateTo' => $request->date_to,
         ]);
     })->name('admin.time-entries.report');
+});
+
+Route::middleware(['auth', 'permission:manage contractors'])->group(function () {
+    Volt::route('admin/contractors', 'admin.contractors.index')->name('admin.contractors');
+    Volt::route('admin/contractors/create', 'admin.contractors.create')->name('admin.contractors.create');
+    Volt::route('admin/contractors/{contractor}/edit', 'admin.contractors.edit')->name('admin.contractors.edit');
 });
 
 Route::middleware(['auth', 'permission:manage quotes'])->group(function () {
