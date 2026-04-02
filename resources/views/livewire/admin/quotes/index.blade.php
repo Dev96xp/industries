@@ -1,10 +1,34 @@
 <?php
 
+use App\Mail\QuoteSent;
+use App\Models\CompanySetting;
 use App\Models\Quote;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
+    public function sendQuote(Quote $quote): void
+    {
+        if (! $quote->client_email) {
+            session()->flash('error', 'This quote has no client email.');
+
+            return;
+        }
+
+        $quote->load('items');
+        $company = CompanySetting::current();
+
+        Mail::to($quote->client_email)
+            ->send(new QuoteSent($quote, $company));
+
+        if ($quote->status === 'draft') {
+            $quote->update(['status' => 'sent']);
+        }
+
+        session()->flash('success', "Quote {$quote->number} sent to {$quote->client_email}.");
+    }
+
     public function deleteQuote(Quote $quote): void
     {
         $quote->delete();
@@ -32,9 +56,12 @@ new #[Layout('components.layouts.app')] class extends Component {
         </flux:button>
     </div>
 
-    {{-- Success --}}
+    {{-- Flash messages --}}
     @if(session('success'))
         <flux:callout variant="success" icon="check-circle">{{ session('success') }}</flux:callout>
+    @endif
+    @if(session('error'))
+        <flux:callout variant="danger" icon="x-circle">{{ session('error') }}</flux:callout>
     @endif
 
     {{-- Table --}}
@@ -85,6 +112,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         class="p-1.5 text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300" title="Print">
                                         <flux:icon.printer class="size-4" />
                                     </a>
+                                    <button
+                                        wire:click="sendQuote({{ $quote->id }})"
+                                        wire:confirm="Send quote {{ $quote->number }} to {{ $quote->client_email ?: 'client' }}?"
+                                        class="p-1.5 text-zinc-400 transition hover:text-blue-500 dark:hover:text-blue-400"
+                                        title="Send by email"
+                                    >
+                                        <flux:icon.envelope class="size-4" />
+                                    </button>
                                     <flux:button href="{{ route('admin.quotes.edit', $quote) }}" variant="ghost" size="sm" icon="pencil" wire:navigate>
                                         Edit
                                     </flux:button>

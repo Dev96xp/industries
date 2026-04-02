@@ -21,6 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage projects',
             'manage contractors',
             'manage quotes',
+            'manage quote requests',
             'manage time entries',
         ];
 
@@ -45,6 +46,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage projects',
             'manage contractors',
             'manage quotes',
+            'manage quote requests',
             'manage time entries',
         ]);
 

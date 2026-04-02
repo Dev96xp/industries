@@ -11,6 +11,24 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
+Route::get('/quotes/{quote}/approve', function (Quote $quote) {
+    if (! request()->hasValidSignature()) {
+        abort(403, 'This approval link is invalid or has expired.');
+    }
+
+    $alreadyApproved = $quote->status === 'accepted';
+
+    if (! $alreadyApproved) {
+        $quote->update(['status' => 'accepted']);
+    }
+
+    return view('quotes.approved', [
+        'quote' => $quote,
+        'company' => CompanySetting::current(),
+        'alreadyApproved' => $alreadyApproved,
+    ]);
+})->name('quotes.approve');
+
 Route::get('/', function () {
     $company = CompanySetting::current();
     $heroPhoto = Photo::hero()->first();
@@ -116,6 +134,10 @@ Route::middleware(['auth', 'permission:manage time entries'])->group(function ()
             'dateTo' => $request->date_to,
         ]);
     })->name('admin.time-entries.report');
+});
+
+Route::middleware(['auth', 'permission:manage quote requests'])->group(function () {
+    Volt::route('admin/quote-requests', 'admin.quote-requests.index')->name('admin.quote-requests');
 });
 
 Route::middleware(['auth', 'permission:manage contractors'])->group(function () {

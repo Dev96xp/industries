@@ -22,6 +22,9 @@
                     @can('manage time entries')
                         <flux:navlist.item icon="clock" :href="route('admin.time-entries')" :current="request()->routeIs('admin.time-entries*')" wire:navigate>Time Entries</flux:navlist.item>
                     @endcan
+                    @can('manage quote requests')
+                        <flux:navlist.item icon="inbox" :href="route('admin.quote-requests')" :current="request()->routeIs('admin.quote-requests*')" wire:navigate>Quote Requests</flux:navlist.item>
+                    @endcan
                     @can('manage quotes')
                         <flux:navlist.item icon="document-text" :href="route('admin.quotes')" :current="request()->routeIs('admin.quotes*')" wire:navigate>Quotes</flux:navlist.item>
                     @endcan

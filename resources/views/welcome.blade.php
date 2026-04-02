@@ -48,15 +48,59 @@
                 {{-- Desktop CTA --}}
                 <div class="hidden sm:flex sm:items-center sm:gap-3">
                     @auth
-                        @if(auth()->user()->hasRole('client'))
-                            <a href="{{ route('client.profile') }}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">My Profile</a>
-                        @else
-                            <a href="{{ route('dashboard') }}" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">Dashboard</a>
-                        @endif
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button type="submit" class="hidden text-sm font-medium text-zinc-400 transition hover:text-white lg:block">Sign out</button>
-                        </form>
+                        {{-- Account dropdown --}}
+                        <div x-data="{ menuOpen: false }" class="relative">
+                            <button
+                                @click="menuOpen = !menuOpen"
+                                class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                            >
+                                <span>{{ auth()->user()->name }}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4 transition" :class="menuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                </svg>
+                            </button>
+
+                            <div
+                                x-show="menuOpen"
+                                @click.away="menuOpen = false"
+                                x-transition:enter="transition ease-out duration-150"
+                                x-transition:enter-start="opacity-0 scale-95 -translate-y-1"
+                                x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                                x-transition:leave="transition ease-in duration-100"
+                                x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+                                x-transition:leave-end="opacity-0 scale-95 -translate-y-1"
+                                class="absolute right-0 top-full mt-2 w-48 origin-top-right rounded-xl border border-white/10 py-1 shadow-xl"
+                                style="background-color: rgba(43,45,48,0.98);"
+                            >
+                                @if(auth()->user()->hasRole('client'))
+                                    <a href="{{ route('client.profile') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                        </svg>
+                                        My Profile
+                                    </a>
+                                @else
+                                    <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                                        </svg>
+                                        Dashboard
+                                    </a>
+                                @endif
+
+                                <div class="my-1 border-t border-white/10"></div>
+
+                                <form method="POST" action="{{ route('logout') }}">
+                                    @csrf
+                                    <button type="submit" class="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
+                                        </svg>
+                                        Sign out
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
                     @else
                         <a href="{{ route('login') }}" class="hidden text-sm font-medium text-zinc-400 transition hover:text-white lg:block">Sign in</a>
                         <a href="#contact" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">Get a Quote</a>
@@ -98,19 +142,35 @@
                 <a @click="open = false" href="#projects" class="border-b border-white/5 py-3 text-sm font-medium text-zinc-300 hover:text-white">Projects</a>
                 <a @click="open = false" href="#process" class="border-b border-white/5 py-3 text-sm font-medium text-zinc-300 hover:text-white">Our Process</a>
                 <a @click="open = false" href="#contact" class="py-3 text-sm font-medium text-zinc-300 hover:text-white">Contact</a>
-                <div class="mt-4 flex flex-col gap-2">
+                <div class="mt-4 flex flex-col gap-1 border-t border-white/10 pt-4">
                     @auth
+                        <p class="mb-1 px-1 text-xs font-medium uppercase tracking-wider text-zinc-500">{{ auth()->user()->name }}</p>
                         @if(auth()->user()->hasRole('client'))
-                            <a href="{{ route('client.profile') }}" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">My Profile</a>
+                            <a href="{{ route('client.profile') }}" class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-white/5 hover:text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                                </svg>
+                                My Profile
+                            </a>
                         @else
-                            <a href="{{ route('dashboard') }}" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">Dashboard</a>
+                            <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-white/5 hover:text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                                </svg>
+                                Dashboard
+                            </a>
                         @endif
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-                            <button type="submit" class="w-full rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300">Sign out</button>
+                            <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 transition hover:bg-white/5 hover:text-white">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15M12 9l3 3m0 0-3 3m3-3H2.25" />
+                                </svg>
+                                Sign out
+                            </button>
                         </form>
                     @else
-                        <a href="{{ route('login') }}" class="rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-medium text-zinc-300">Sign in</a>
+                        <a href="{{ route('login') }}" class="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-white/5 hover:text-white">Sign in</a>
                         <a href="#contact" @click="open = false" class="rounded-lg bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white">Get a Quote</a>
                     @endauth
                 </div>
@@ -573,12 +633,15 @@
                         </div>
 
                         <div class="mt-8 sm:mt-10">
-                            <a href="{{ $company->email ? 'mailto:'.$company->email : '#' }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700 sm:w-auto">
+                            <button
+                                onclick="Livewire.dispatch('open-quote-form')"
+                                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-sm font-bold text-white shadow-lg transition hover:bg-blue-700 sm:w-auto"
+                            >
                                 Request a Free Quote
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                                 </svg>
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -653,6 +716,7 @@
         </div>
     </footer>
 
+    @livewire('quote-request-form')
     @livewireScripts
 </body>
 </html>
