@@ -245,6 +245,9 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
         </div>
 
+        {{-- Lightbox scope --}}
+        <div x-data="{ lightbox: null }" x-on:keydown.escape.window="lightbox = null" class="flex flex-col gap-4">
+
         {{-- Filters --}}
         <div class="flex flex-wrap items-center gap-3">
             <span class="text-sm font-medium text-zinc-500">Filter:</span>
@@ -269,7 +272,10 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @foreach($photos as $photo)
                     <div class="group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
                         {{-- Image --}}
-                        <div class="aspect-square overflow-hidden">
+                        <div
+                            class="aspect-square cursor-zoom-in overflow-hidden"
+                            x-on:click="lightbox = '{{ $photo->url() }}'"
+                        >
                             <img src="{{ $photo->url() }}" alt="{{ $photo->title }}" class="h-full w-full object-cover transition group-hover:scale-105">
                         </div>
 
@@ -287,8 +293,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                         </div>
 
                         {{-- Actions overlay — desktop hover only --}}
-                        <div class="absolute inset-0 hidden flex-col justify-end bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition group-hover:opacity-100 sm:flex">
-                            <div class="flex items-center justify-between p-3">
+                        <div class="pointer-events-none absolute inset-0 hidden flex-col justify-end bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition group-hover:opacity-100 sm:flex">
+                            <div class="pointer-events-auto flex items-center justify-between p-3">
                                 <div class="flex gap-1.5">
                                     {{-- Hero star --}}
                                     <button
@@ -409,6 +415,38 @@ new #[Layout('components.layouts.app')] class extends Component {
                 @endforeach
             </div>
         @endif
+
+    {{-- Lightbox modal --}}
+    <div
+        x-show="lightbox"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        x-on:click="lightbox = null"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+        style="display: none;"
+    >
+        {{-- Close button --}}
+        <button
+            x-on:click="lightbox = null"
+            class="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/25"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        {{-- Image --}}
+        <img
+            :src="lightbox"
+            x-on:click.stop
+            class="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+            alt="Photo preview"
+        >
     </div>
 
+        </div>{{-- end lightbox scope --}}
 </div>

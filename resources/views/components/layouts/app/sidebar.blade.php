@@ -42,6 +42,7 @@
                     @endcan
                     @can('manage users')
                         <flux:navlist.item icon="users" :href="route('admin.users')" :current="request()->routeIs('admin.users')" wire:navigate>Users</flux:navlist.item>
+                        <flux:navlist.item icon="user-group" :href="route('admin.clients')" :current="request()->routeIs('admin.clients')" wire:navigate>Clients</flux:navlist.item>
                     @endcan
                 </flux:navlist.group>
             </flux:navlist>

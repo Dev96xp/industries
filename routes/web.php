@@ -52,7 +52,19 @@ Route::middleware(['auth', 'not.client'])->group(function () {
 
 Route::middleware(['auth'])->group(function () {
     Volt::route('client/profile', 'client.profile')->name('client.profile');
+    Volt::route('client/account', 'client.account')->name('client.account');
     Volt::route('worker/timeclock', 'worker.timeclock')->name('worker.timeclock');
+
+    Route::get('client/quotes/{quote}', function (Quote $quote) {
+        abort_if($quote->user_id !== auth()->id(), 403);
+
+        $quote->load('items');
+
+        return view('client.quote', [
+            'quote' => $quote,
+            'company' => CompanySetting::current(),
+        ]);
+    })->name('client.quotes.view');
 });
 
 Route::middleware(['auth', 'permission:manage photos'])->group(function () {
@@ -65,6 +77,7 @@ Route::middleware(['auth', 'permission:manage company settings'])->group(functio
 
 Route::middleware(['auth', 'permission:manage users'])->group(function () {
     Volt::route('admin/users', 'admin.users')->name('admin.users');
+    Volt::route('admin/clients', 'admin.clients.index')->name('admin.clients');
 });
 
 Route::middleware(['auth', 'permission:manage projects'])->group(function () {

@@ -235,16 +235,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             <flux:button wire:click="cancelEdit" variant="ghost" size="sm">Cancel</flux:button>
                                         </div>
                                     @else
-                                        <div class="flex items-center justify-end gap-2">
-                                            @can('manage quotes')
-                                                <flux:button href="{{ route('admin.quotes.create', ['client' => $client->id]) }}" variant="primary" size="sm" icon="document-text" wire:navigate>
-                                                    Create Quote
-                                                </flux:button>
-                                            @endcan
-                                            <flux:button wire:click="editUser({{ $client->id }})" variant="ghost" size="sm" icon="pencil">
-                                                Change Role
-                                            </flux:button>
-                                        </div>
+                                        <flux:button wire:click="editUser({{ $client->id }})" variant="ghost" size="sm" icon="pencil">
+                                            Change Role
+                                        </flux:button>
                                     @endif
                                 </td>
                             </tr>
