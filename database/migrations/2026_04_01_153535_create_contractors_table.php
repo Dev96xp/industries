@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('contractors', function (Blueprint $table) {
@@ -28,7 +25,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Add FK from project_tasks to contractors now that contractors table exists
         Schema::table('project_tasks', function (Blueprint $table) {
             $table->foreign('contractor_id')->references('id')->on('contractors')->nullOnDelete();
         });

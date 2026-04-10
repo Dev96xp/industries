@@ -16,7 +16,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $terms           = '';
     public string $status          = 'draft';
 
-    /** @var array<int, array{description: string, quantity: string, unit_price: string}> */
+    /** @var array<int, array{description: string, quantity: string, unit_price: string, unit: string}> */
     public array $items = [];
 
     public function mount(): void
@@ -28,7 +28,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function addItem(): void
     {
-        $this->items[] = ['description' => '', 'quantity' => '1', 'unit_price' => ''];
+        $this->items[] = ['description' => '', 'quantity' => '1', 'unit_price' => '', 'unit' => ''];
     }
 
     public function removeItem(int $index): void
@@ -89,6 +89,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 'description' => $item['description'],
                 'quantity'    => $item['quantity'],
                 'unit_price'  => $item['unit_price'],
+                'unit'        => $item['unit'] ?? null,
                 'sort_order'  => $i,
             ]);
         }
@@ -162,27 +163,52 @@ new #[Layout('components.layouts.app')] class extends Component {
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Line Items</h3>
 
-            <div class="mb-3 hidden grid-cols-12 gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 sm:grid">
-                <div class="col-span-6">Description</div>
+            <div class="overflow-x-auto">
+            <div class="mb-3 grid min-w-[600px] grid-cols-12 gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <div class="col-span-5">Description</div>
                 <div class="col-span-2 text-right">Qty</div>
                 <div class="col-span-2 text-right">Unit Price</div>
+                <div class="col-span-1 text-right">Unit</div>
                 <div class="col-span-2 text-right">Total</div>
             </div>
 
             <div class="flex flex-col gap-2">
                 @foreach($items as $i => $item)
-                    <div class="grid grid-cols-12 items-center gap-2">
-                        <div class="col-span-12 sm:col-span-6">
+                    <div
+                        class="grid min-w-[600px] grid-cols-12 items-center gap-2"
+                        x-data="{ qty: {{ (float)($item['quantity'] ?? 0) }}, price: {{ (float)($item['unit_price'] ?? 0) }} }"
+                    >
+                        <div class="col-span-5">
                             <flux:input wire:model="items.{{ $i }}.description" placeholder="Description of work or material" />
                         </div>
-                        <div class="col-span-4 sm:col-span-2">
-                            <flux:input wire:model="items.{{ $i }}.quantity" type="number" step="0.01" min="0" placeholder="1" />
+                        <div class="col-span-2">
+                            <flux:input wire:model="items.{{ $i }}.quantity" type="number" step="0.01" min="0" placeholder="1" x-on:input="qty = parseFloat($event.target.value) || 0" />
                         </div>
-                        <div class="col-span-4 sm:col-span-2">
-                            <flux:input wire:model="items.{{ $i }}.unit_price" type="number" step="0.01" min="0" placeholder="0.00" />
+                        <div class="col-span-2">
+                            <flux:input wire:model="items.{{ $i }}.unit_price" type="number" step="0.01" min="0" placeholder="0.00" x-on:input="price = parseFloat($event.target.value) || 0" />
                         </div>
-                        <div class="col-span-3 sm:col-span-1 text-right text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                            ${{ number_format((float)($item['quantity'] ?? 0) * (float)($item['unit_price'] ?? 0), 2) }}
+                        <div class="col-span-1">
+                            <flux:select wire:model="items.{{ $i }}.unit" placeholder="—">
+                                <flux:select.option value="">—</flux:select.option>
+                                <flux:select.option value="each">each</flux:select.option>
+                                <flux:select.option value="hr">hr</flux:select.option>
+                                <flux:select.option value="day">day</flux:select.option>
+                                <flux:select.option value="sqft">sq ft</flux:select.option>
+                                <flux:select.option value="sqyd">sq yd</flux:select.option>
+                                <flux:select.option value="sqm">sq m</flux:select.option>
+                                <flux:select.option value="linft">lin ft</flux:select.option>
+                                <flux:select.option value="linm">lin m</flux:select.option>
+                                <flux:select.option value="ft">ft</flux:select.option>
+                                <flux:select.option value="in">in</flux:select.option>
+                                <flux:select.option value="cm">cm</flux:select.option>
+                                <flux:select.option value="yd">yd</flux:select.option>
+                                <flux:select.option value="lb">lb</flux:select.option>
+                                <flux:select.option value="kg">kg</flux:select.option>
+                                <flux:select.option value="ton">ton</flux:select.option>
+                            </flux:select>
+                        </div>
+                        <div class="col-span-1 text-right text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                            $<span x-text="(qty * price).toFixed(2)"></span>
                         </div>
                         <div class="col-span-1 text-right">
                             @if(count($items) > 1)
@@ -194,6 +220,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     </div>
                 @endforeach
             </div>
+            </div>{{-- end overflow-x-auto --}}
 
             <button type="button" wire:click="addItem"
                 class="mt-3 flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 transition">

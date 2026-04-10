@@ -8,6 +8,8 @@ use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
+    public string $activeTab = 'active';
+
     public function sendQuote(Quote $quote): void
     {
         if (! $quote->client_email) {
@@ -29,16 +31,25 @@ new #[Layout('components.layouts.app')] class extends Component {
         session()->flash('success', "Quote {$quote->number} sent to {$quote->client_email}.");
     }
 
-    public function deleteQuote(Quote $quote): void
+    public function archiveQuote(Quote $quote): void
     {
         $quote->delete();
-        session()->flash('success', 'Quote deleted.');
+        session()->flash('success', "Quote {$quote->number} archived.");
+    }
+
+    public function restoreQuote(int $id): void
+    {
+        $quote = Quote::withTrashed()->findOrFail($id);
+        $quote->restore();
+        session()->flash('success', "Quote {$quote->number} restored.");
     }
 
     public function with(): array
     {
         return [
-            'quotes' => Quote::with('project')->orderByDesc('created_at')->get(),
+            'quotes' => $this->activeTab === 'archived'
+                ? Quote::onlyTrashed()->with('project')->orderByDesc('deleted_at')->get()
+                : Quote::with('project')->orderByDesc('created_at')->get(),
         ];
     }
 }; ?>
@@ -64,11 +75,25 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:callout variant="danger" icon="x-circle">{{ session('error') }}</flux:callout>
     @endif
 
+    {{-- Tabs --}}
+    <div class="flex gap-1 rounded-xl border border-zinc-200 bg-zinc-100 p-1 w-fit dark:border-zinc-700 dark:bg-zinc-800">
+        <button wire:click="$set('activeTab', 'active')"
+            class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $activeTab === 'active' ? 'bg-white shadow text-zinc-900 dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            Active
+        </button>
+        <button wire:click="$set('activeTab', 'archived')"
+            class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $activeTab === 'archived' ? 'bg-white shadow text-zinc-900 dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            Archived
+        </button>
+    </div>
+
     {{-- Table --}}
     @if($quotes->isEmpty())
         <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white py-16 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:icon.document-text class="size-10 text-zinc-300" />
-            <p class="mt-3 text-sm text-zinc-400">No quotes yet. Create your first one.</p>
+            <p class="mt-3 text-sm text-zinc-400">
+                {{ $activeTab === 'archived' ? 'No archived quotes.' : 'No quotes yet. Create your first one.' }}
+            </p>
         </div>
     @else
         <div class="overflow-x-auto rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
@@ -108,26 +133,33 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
-                                    <a href="{{ route('admin.quotes.report', $quote) }}" target="_blank"
-                                        class="p-1.5 text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300" title="Print">
-                                        <flux:icon.printer class="size-4" />
-                                    </a>
-                                    <button
-                                        wire:click="sendQuote({{ $quote->id }})"
-                                        wire:confirm="Send quote {{ $quote->number }} to {{ $quote->client_email ?: 'client' }}?"
-                                        class="p-1.5 text-zinc-400 transition hover:text-blue-500 dark:hover:text-blue-400"
-                                        title="Send by email"
-                                    >
-                                        <flux:icon.envelope class="size-4" />
-                                    </button>
-                                    <flux:button href="{{ route('admin.quotes.edit', $quote) }}" variant="ghost" size="sm" icon="pencil" wire:navigate>
-                                        Edit
-                                    </flux:button>
-                                    <flux:button wire:click="deleteQuote({{ $quote->id }})"
-                                        wire:confirm="Delete quote {{ $quote->number }}? This cannot be undone."
-                                        variant="ghost" size="sm" icon="trash"
-                                        class="text-red-400 hover:text-red-600">
-                                    </flux:button>
+                                    @if($activeTab === 'archived')
+                                        <flux:button wire:click="restoreQuote({{ $quote->id }})"
+                                            variant="ghost" size="sm" icon="arrow-uturn-left">
+                                            Restore
+                                        </flux:button>
+                                    @else
+                                        <a href="{{ route('admin.quotes.report', $quote) }}" target="_blank"
+                                            class="p-1.5 text-zinc-400 transition hover:text-zinc-600 dark:hover:text-zinc-300" title="Print">
+                                            <flux:icon.printer class="size-4" />
+                                        </a>
+                                        <button
+                                            wire:click="sendQuote({{ $quote->id }})"
+                                            wire:confirm="Send quote {{ $quote->number }} to {{ $quote->client_email ?: 'client' }}?"
+                                            class="p-1.5 text-zinc-400 transition hover:text-blue-500 dark:hover:text-blue-400"
+                                            title="Send by email"
+                                        >
+                                            <flux:icon.envelope class="size-4" />
+                                        </button>
+                                        <flux:button href="{{ route('admin.quotes.edit', $quote) }}" variant="ghost" size="sm" icon="pencil" wire:navigate>
+                                            Edit
+                                        </flux:button>
+                                        <flux:button wire:click="archiveQuote({{ $quote->id }})"
+                                            wire:confirm="Archive quote {{ $quote->number }}?"
+                                            variant="ghost" size="sm" icon="archive-box"
+                                            class="text-zinc-400 hover:text-zinc-600">
+                                        </flux:button>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

@@ -213,10 +213,11 @@
 <table>
     <thead>
         <tr>
-            <th style="width:55%">Description</th>
-            <th class="text-right" style="width:15%">Qty</th>
+            <th style="width:45%">Description</th>
+            <th class="text-right" style="width:12%">Qty</th>
+            <th class="text-right" style="width:10%">Unit</th>
             <th class="text-right" style="width:15%">Unit Price</th>
-            <th class="text-right" style="width:15%">Total</th>
+            <th class="text-right" style="width:18%">Total</th>
         </tr>
     </thead>
     <tbody>
@@ -224,6 +225,7 @@
             <tr>
                 <td>{{ $item->description }}</td>
                 <td class="text-right">{{ number_format((float) $item->quantity, 2) }}</td>
+                <td class="text-right">{{ $item->unit ?: '—' }}</td>
                 <td class="text-right">${{ number_format((float) $item->unit_price, 2) }}</td>
                 <td class="text-right font-semibold">${{ number_format($item->line_total, 2) }}</td>
             </tr>

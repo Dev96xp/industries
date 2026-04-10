@@ -17,6 +17,7 @@ class QuoteItem extends Model
         'description',
         'quantity',
         'unit_price',
+        'unit',
         'sort_order',
     ];
 

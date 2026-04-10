@@ -117,12 +117,17 @@ new #[Layout('components.layouts.app')] class extends Component {
                             @endif
                             <h3 class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $project->name }}</h3>
                             @if($project->address)
-                                <p class="mt-0.5 text-xs text-zinc-400">{{ $project->address }}</p>
+                                <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($project->address) }}" target="_blank" class="mt-0.5 block text-xs text-zinc-400 hover:text-blue-500 transition">{{ $project->address }}</a>
                             @endif
                         </div>
 
                         <div class="flex items-center justify-between text-xs text-zinc-400 mt-auto pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                            <span>{{ $project->client?->name ?? 'No client' }}</span>
+                            <div>
+                                <span>{{ $project->client?->name ?? 'No client' }}</span>
+                                @if($project->client?->phone)
+                                    <a href="tel:{{ $project->client->phone }}" class="ml-2 hover:text-blue-500 transition">{{ $project->client->phone }}</a>
+                                @endif
+                            </div>
                             @if($project->budget)
                                 <span>${{ number_format($project->budget, 0) }}</span>
                             @endif

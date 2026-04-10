@@ -96,7 +96,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {{-- Header --}}
     <div class="flex items-center justify-between">
         <div>
-            <flux:heading size="xl">Quote Requests</flux:heading>
+            <flux:heading size="xl">Messages</flux:heading>
             <flux:text class="mt-1 text-zinc-500">Messages received from the public website.</flux:text>
         </div>
         @if($newCount > 0)

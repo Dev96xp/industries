@@ -443,7 +443,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'photos'       => $this->project->photos,
             'expenses'     => $this->project->expenses,
             'incomes'      => $this->project->incomes,
-            'tasks'        => $this->project->tasks()->with(['assignedUser', 'contractor'])->get(),
+            'tasks'        => $this->project->tasks()->with(['assignedUser', 'contractor', 'subtasks.assignedUser'])->get(),
             'subtasks'     => $this->editingTaskId ? ProjectTask::find($this->editingTaskId)?->subtasks()->with('assignedUser')->get() : collect(),
             'staff'        => User::whereHas('roles', fn ($q) => $q->whereIn('name', ['superadmin', 'admin', 'editor', 'worker']))->orderBy('name')->get(),
             'contractors'  => Contractor::where('is_active', true)->orderBy('company_name')->get(),
@@ -604,62 +604,142 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 default       => 'Pending',
                             };
                         @endphp
-                        <div x-sort:item="{{ $task->id }}" class="flex items-start gap-3 rounded-xl border border-zinc-100 dark:border-zinc-800 px-4 py-3 cursor-default">
-                            {{-- Drag handle --}}
-                            <div x-sort:handle class="mt-1 shrink-0 cursor-grab text-zinc-300 hover:text-zinc-400 dark:text-zinc-600 dark:hover:text-zinc-500">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM8.5 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM8.5 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/></svg>
-                            </div>
-                            {{-- Status dot --}}
-                            <div class="mt-1 shrink-0">
-                                @if($task->status === 'completed')
-                                    <div class="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-                                        <svg class="size-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                                    </div>
-                                @elseif($task->status === 'in_progress')
-                                    <div class="size-5 rounded-full border-2 border-blue-500 bg-blue-100 dark:bg-blue-900/30"></div>
-                                @elseif($task->status === 'delayed')
-                                    <div class="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                                        <svg class="size-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z"/></svg>
-                                    </div>
-                                @else
-                                    <div class="size-5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800"></div>
-                                @endif
-                            </div>
+                        <div x-sort:item="{{ $task->id }}" x-data="{ open: false }" class="rounded-xl border border-zinc-100 dark:border-zinc-800">
+                            {{-- Task row --}}
+                            <div class="flex items-start gap-3 px-4 py-3 cursor-default">
+                                {{-- Drag handle --}}
+                                <div x-sort:handle class="mt-1 shrink-0 cursor-grab text-zinc-300 hover:text-zinc-400 dark:text-zinc-600 dark:hover:text-zinc-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM8.5 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM8.5 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM18.5 18a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z"/></svg>
+                                </div>
+                                {{-- Status dot --}}
+                                <div class="mt-1 shrink-0">
+                                    @if($task->status === 'completed')
+                                        <div class="flex size-5 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                                            <svg class="size-3 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                                        </div>
+                                    @elseif($task->status === 'in_progress')
+                                        <div class="size-5 rounded-full border-2 border-blue-500 bg-blue-100 dark:bg-blue-900/30"></div>
+                                    @elseif($task->status === 'delayed')
+                                        <div class="flex size-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                                            <svg class="size-3 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z"/></svg>
+                                        </div>
+                                    @else
+                                        <div class="size-5 rounded-full border-2 border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800"></div>
+                                    @endif
+                                </div>
 
-                            {{-- Info --}}
-                            <div class="min-w-0 flex-1">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $task->name }}</span>
-                                    <button wire:click="cycleTaskStatus({{ $task->id }})" title="Click to change status" class="cursor-pointer">
-                                        <flux:badge size="sm" color="{{ $statusColor }}">{{ $statusLabel }}</flux:badge>
+                                {{-- Info --}}
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $task->name }}</span>
+                                        <button wire:click="cycleTaskStatus({{ $task->id }})" title="Click to change status" class="cursor-pointer">
+                                            <flux:badge size="sm" color="{{ $statusColor }}">{{ $statusLabel }}</flux:badge>
+                                        </button>
+                                        @if($task->subtasks->isNotEmpty())
+                                            <span class="text-xs text-zinc-400">{{ $task->subtasks->count() }} subtask(s)</span>
+                                        @endif
+                                    </div>
+                                    <p class="text-xs text-zinc-400 mt-0.5">
+                                        {{ $task->start_date->format('M d') }} – {{ $task->end_date->format('M d, Y') }}
+                                        &middot;
+                                        @if($task->isExternal())
+                                            <span class="text-amber-600 dark:text-amber-400">{{ $task->assigned_company }}</span>
+                                        @else
+                                            {{ $task->assignedUser?->name ?? '—' }}
+                                        @endif
+                                    </p>
+                                    @if($task->notes)
+                                        <p class="text-xs text-zinc-400 mt-0.5 italic">{{ $task->notes }}</p>
+                                    @endif
+                                </div>
+
+                                {{-- Actions --}}
+                                <div class="flex shrink-0 items-center gap-1">
+                                    @if($task->subtasks->isNotEmpty())
+                                        <button x-on:click="open = !open" class="p-1 text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400 transition" title="Toggle subtasks">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="size-4 transition-transform duration-200" :class="open ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                                            </svg>
+                                        </button>
+                                    @endif
+                                    <a href="{{ route('admin.projects.tasks.report', [$project, $task]) }}" target="_blank" class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
+                                        <flux:icon.printer class="size-3.5" />
+                                    </a>
+                                    <button wire:click="editTask({{ $task->id }})" class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
+                                        <flux:icon.pencil class="size-3.5" />
+                                    </button>
+                                    <button wire:click="deleteTask({{ $task->id }})" wire:confirm="Delete this task?" class="p-1 text-zinc-400 hover:text-red-500 transition">
+                                        <flux:icon.trash class="size-3.5" />
                                     </button>
                                 </div>
-                                <p class="text-xs text-zinc-400 mt-0.5">
-                                    {{ $task->start_date->format('M d') }} – {{ $task->end_date->format('M d, Y') }}
-                                    &middot;
-                                    @if($task->isExternal())
-                                        <span class="text-amber-600 dark:text-amber-400">{{ $task->assigned_company }}</span>
-                                    @else
-                                        {{ $task->assignedUser?->name ?? '—' }}
-                                    @endif
-                                </p>
-                                @if($task->notes)
-                                    <p class="text-xs text-zinc-400 mt-0.5 italic">{{ $task->notes }}</p>
-                                @endif
                             </div>
 
-                            {{-- Actions --}}
-                            <div class="flex shrink-0 gap-1">
-                                <a href="{{ route('admin.projects.tasks.report', [$project, $task]) }}" target="_blank" class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
-                                    <flux:icon.printer class="size-3.5" />
-                                </a>
-                                <button wire:click="editTask({{ $task->id }})" class="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
-                                    <flux:icon.pencil class="size-3.5" />
-                                </button>
-                                <button wire:click="deleteTask({{ $task->id }})" wire:confirm="Delete this task?" class="p-1 text-zinc-400 hover:text-red-500 transition">
-                                    <flux:icon.trash class="size-3.5" />
-                                </button>
-                            </div>
+                            {{-- Accordion: subtasks --}}
+                            @if($task->subtasks->isNotEmpty())
+                                <div
+                                    x-show="open"
+                                    x-transition:enter="transition ease-out duration-200"
+                                    x-transition:enter-start="opacity-0 -translate-y-1"
+                                    x-transition:enter-end="opacity-100 translate-y-0"
+                                    x-transition:leave="transition ease-in duration-150"
+                                    x-transition:leave-start="opacity-100 translate-y-0"
+                                    x-transition:leave-end="opacity-0 -translate-y-1"
+                                    style="display: none;"
+                                    class="border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/30 rounded-b-xl px-4 py-3 space-y-2"
+                                >
+                                    @foreach($task->subtasks as $subtask)
+                                        @php
+                                            $subColor = match($subtask->status) {
+                                                'in_progress' => 'blue',
+                                                'completed'   => 'green',
+                                                'delayed'     => 'red',
+                                                'cancelled'   => 'zinc',
+                                                default       => 'zinc',
+                                            };
+                                            $subLabel = match($subtask->status) {
+                                                'in_progress' => 'In Progress',
+                                                'completed'   => 'Completed',
+                                                'delayed'     => 'Delayed',
+                                                'cancelled'   => 'Cancelled',
+                                                default       => 'Pending',
+                                            };
+                                        @endphp
+                                        <div class="flex items-center gap-3 pl-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5">
+                                            {{-- Indent line --}}
+                                            <div class="w-px h-4 bg-blue-300 dark:bg-blue-700 shrink-0"></div>
+                                            {{-- Status dot --}}
+                                            <div class="shrink-0">
+                                                @if($subtask->status === 'completed')
+                                                    <div class="flex size-4 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                                                        <svg class="size-2.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                                                    </div>
+                                                @else
+                                                    <div class="size-4 rounded-full border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"></div>
+                                                @endif
+                                            </div>
+                                            {{-- Name --}}
+                                            <span class="flex-1 text-xs text-zinc-700 dark:text-zinc-300">{{ $subtask->name }}</span>
+                                            {{-- Assigned --}}
+                                            @if($subtask->assignedUser)
+                                                <span class="text-xs text-zinc-400">
+                                                    {{ $subtask->assignedUser->name }}
+                                                    @if($subtask->assignedUser->phone)
+                                                        · <a href="tel:{{ $subtask->assignedUser->phone }}" class="hover:text-blue-500 transition">{{ $subtask->assignedUser->phone }}</a>
+                                                    @endif
+                                                </span>
+                                            @endif
+                                            {{-- Status badge --}}
+                                            <button wire:click="cycleSubtaskStatus({{ $subtask->id }})" title="Click to change status" class="cursor-pointer">
+                                                <flux:badge size="sm" color="{{ $subColor }}">{{ $subLabel }}</flux:badge>
+                                            </button>
+                                            {{-- Delete --}}
+                                            <button wire:click="deleteSubtask({{ $subtask->id }})" wire:confirm="Delete this subtask?" class="p-0.5 text-zinc-300 hover:text-red-400 transition">
+                                                <flux:icon.trash class="size-3" />
+                                            </button>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>

@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('photos', function (Blueprint $table) {
@@ -20,14 +17,13 @@ return new class extends Migration
             $table->unsignedBigInteger('size')->nullable();
             $table->string('category')->nullable();
             $table->boolean('is_featured')->default(false);
+            $table->boolean('is_hero')->default(false);
+            $table->boolean('is_about')->default(false);
             $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('photos');

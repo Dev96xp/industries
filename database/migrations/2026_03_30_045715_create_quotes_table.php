@@ -6,14 +6,12 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('quotes', function (Blueprint $table) {
             $table->id();
-            $table->string('number')->unique();           // Q-0001
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('number')->unique();
             $table->string('client_name');
             $table->string('client_email')->nullable();
             $table->string('client_phone')->nullable();
@@ -26,12 +24,10 @@ return new class extends Migration
             $table->enum('status', ['draft', 'sent', 'accepted', 'rejected'])->default('draft');
             $table->foreignId('project_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('quotes');

@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('project_expenses', function (Blueprint $table) {
@@ -19,13 +16,11 @@ return new class extends Migration
             $table->decimal('amount', 12, 2);
             $table->date('expense_date');
             $table->text('notes')->nullable();
+            $table->enum('payment_method', ['cash', 'check', 'visa', 'mastercard', 'bank_transfer', 'other'])->default('other');
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('project_expenses');
