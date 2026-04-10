@@ -65,7 +65,7 @@ new class extends Component {
                 {{-- Header --}}
                 <div class="flex items-start justify-between p-6 pb-4">
                     <div>
-                        <h2 class="text-xl font-bold text-zinc-900 dark:text-white">Request a Free Quote</h2>
+                        <h2 class="text-xl font-bold text-zinc-900 dark:text-white">Send Us a Message</h2>
                         <p class="mt-1 text-sm text-zinc-500">We'll get back to you within 24 hours.</p>
                     </div>
                     <button wire:click="close" class="flex size-8 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800">
@@ -158,7 +158,7 @@ new class extends Component {
                                 Cancel
                             </button>
                             <button type="submit" class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700" wire:loading.attr="disabled">
-                                <span wire:loading.remove wire:target="submit">Send Request</span>
+                                <span wire:loading.remove wire:target="submit">Send Message</span>
                                 <span wire:loading wire:target="submit">Sending...</span>
                             </button>
                         </div>
