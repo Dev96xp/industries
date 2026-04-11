@@ -21,6 +21,9 @@ class CompanySetting extends Model
         'facebook',
         'instagram',
         'linkedin',
+        'livewire_max_payload_mb',
+        'ip_restriction_enabled',
+        'allowed_ips',
     ];
 
     public static function current(): self

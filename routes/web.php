@@ -38,16 +38,35 @@ Route::get('/', function () {
     return view('welcome', compact('company', 'heroPhoto', 'aboutPhoto', 'featuredPhotos'));
 })->name('home');
 
-Route::view('dashboard', 'dashboard')
-    ->middleware(['auth', 'verified', 'not.client'])
-    ->name('dashboard');
+Route::middleware(['restrict.ip'])->group(function () {
+    Route::view('dashboard', 'dashboard')
+        ->middleware(['auth', 'verified', 'not.client'])
+        ->name('dashboard');
 
-Route::middleware(['auth', 'not.client'])->group(function () {
-    Route::redirect('settings', 'settings/profile');
+    Route::middleware(['auth', 'not.client'])->group(function () {
+        Route::redirect('settings', 'settings/profile');
 
-    Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
-    Volt::route('settings/password', 'settings.password')->name('settings.password');
-    Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
+        Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
+        Volt::route('settings/password', 'settings.password')->name('settings.password');
+        Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
+    });
+
+    Route::middleware(['auth', 'permission:manage photos'])->group(function () {
+        Volt::route('admin/photos', 'admin.photos')->name('admin.photos');
+    });
+
+    Route::middleware(['auth', 'permission:manage company settings'])->group(function () {
+        Volt::route('admin/company-settings', 'admin.company-settings')->name('admin.company-settings');
+    });
+
+    Route::middleware(['auth', 'permission:manage users'])->group(function () {
+        Volt::route('admin/users', 'admin.users')->name('admin.users');
+        Volt::route('admin/clients', 'admin.clients.index')->name('admin.clients');
+    });
+
+    Route::middleware(['auth', 'role:superadmin'])->group(function () {
+        Volt::route('admin/system-settings', 'admin.system-settings')->name('admin.system-settings');
+    });
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -67,20 +86,7 @@ Route::middleware(['auth'])->group(function () {
     })->name('client.quotes.view');
 });
 
-Route::middleware(['auth', 'permission:manage photos'])->group(function () {
-    Volt::route('admin/photos', 'admin.photos')->name('admin.photos');
-});
-
-Route::middleware(['auth', 'permission:manage company settings'])->group(function () {
-    Volt::route('admin/company-settings', 'admin.company-settings')->name('admin.company-settings');
-});
-
-Route::middleware(['auth', 'permission:manage users'])->group(function () {
-    Volt::route('admin/users', 'admin.users')->name('admin.users');
-    Volt::route('admin/clients', 'admin.clients.index')->name('admin.clients');
-});
-
-Route::middleware(['auth', 'permission:manage projects'])->group(function () {
+Route::middleware(['restrict.ip', 'auth', 'permission:manage projects'])->group(function () {
     Volt::route('admin/projects', 'admin.projects.index')->name('admin.projects');
     Volt::route('admin/projects/create', 'admin.projects.create')->name('admin.projects.create');
     Volt::route('admin/projects/{project}/edit', 'admin.projects.edit')->name('admin.projects.edit');
@@ -110,7 +116,7 @@ Route::middleware(['auth', 'permission:manage projects'])->group(function () {
     })->name('admin.projects.report');
 });
 
-Route::middleware(['auth', 'permission:manage time entries'])->group(function () {
+Route::middleware(['restrict.ip', 'auth', 'permission:manage time entries'])->group(function () {
     Volt::route('admin/time-entries', 'admin.time-entries.index')->name('admin.time-entries');
 
     Route::get('admin/time-entries/report', function (Request $request) {
@@ -149,17 +155,17 @@ Route::middleware(['auth', 'permission:manage time entries'])->group(function ()
     })->name('admin.time-entries.report');
 });
 
-Route::middleware(['auth', 'permission:manage quote requests'])->group(function () {
+Route::middleware(['restrict.ip', 'auth', 'permission:manage quote requests'])->group(function () {
     Volt::route('admin/quote-requests', 'admin.quote-requests.index')->name('admin.quote-requests');
 });
 
-Route::middleware(['auth', 'permission:manage contractors'])->group(function () {
+Route::middleware(['restrict.ip', 'auth', 'permission:manage contractors'])->group(function () {
     Volt::route('admin/contractors', 'admin.contractors.index')->name('admin.contractors');
     Volt::route('admin/contractors/create', 'admin.contractors.create')->name('admin.contractors.create');
     Volt::route('admin/contractors/{contractor}/edit', 'admin.contractors.edit')->name('admin.contractors.edit');
 });
 
-Route::middleware(['auth', 'permission:manage quotes'])->group(function () {
+Route::middleware(['restrict.ip', 'auth', 'permission:manage quotes'])->group(function () {
     Volt::route('admin/quotes', 'admin.quotes.index')->name('admin.quotes');
     Volt::route('admin/quotes/create', 'admin.quotes.create')->name('admin.quotes.create');
     Volt::route('admin/quotes/{quote}/edit', 'admin.quotes.edit')->name('admin.quotes.edit');

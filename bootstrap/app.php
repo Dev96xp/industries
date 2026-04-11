@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\RedirectIfClient;
+use App\Http\Middleware\RestrictByIp;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
             'not.client' => RedirectIfClient::class,
+            'restrict.ip' => RestrictByIp::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

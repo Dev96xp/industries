@@ -28,6 +28,71 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:badge color="amber" size="lg">{{ $clients->count() }} Clients</flux:badge>
     </div>
 
+    {{-- Workflow diagram --}}
+    <div class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+        <p class="mb-4 text-xs font-semibold uppercase tracking-wider text-zinc-400">How it works</p>
+        <div class="flex flex-col items-center gap-2 sm:flex-row sm:items-start sm:justify-center sm:gap-0">
+
+            {{-- Step 1 --}}
+            <div class="flex flex-col items-center text-center">
+                <div class="flex size-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                    <flux:icon.user-plus class="size-5 text-amber-600" />
+                </div>
+                <p class="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">1. Register Client</p>
+                <p class="mt-0.5 max-w-[110px] text-xs text-zinc-400">Add client from Users module</p>
+            </div>
+
+            {{-- Arrow --}}
+            <div class="flex items-center justify-center sm:mt-5 sm:px-3">
+                <svg class="size-5 rotate-90 text-zinc-300 sm:rotate-0 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+            </div>
+
+            {{-- Step 2 --}}
+            <div class="flex flex-col items-center text-center">
+                <div class="flex size-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+                    <flux:icon.document-text class="size-5 text-blue-600" />
+                </div>
+                <p class="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">2. Create Quote</p>
+                <p class="mt-0.5 max-w-[110px] text-xs text-zinc-400">Use "New Quote" button on the client row</p>
+            </div>
+
+            {{-- Arrow --}}
+            <div class="flex items-center justify-center sm:mt-5 sm:px-3">
+                <svg class="size-5 rotate-90 text-zinc-300 sm:rotate-0 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+            </div>
+
+            {{-- Step 3 --}}
+            <div class="flex flex-col items-center text-center">
+                <div class="flex size-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                    <flux:icon.check-badge class="size-5 text-green-600" />
+                </div>
+                <p class="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">3. Quote Accepted</p>
+                <p class="mt-0.5 max-w-[110px] text-xs text-zinc-400">Send quote and wait for client approval</p>
+            </div>
+
+            {{-- Arrow --}}
+            <div class="flex items-center justify-center sm:mt-5 sm:px-3">
+                <svg class="size-5 rotate-90 text-zinc-300 sm:rotate-0 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+            </div>
+
+            {{-- Step 4 --}}
+            <div class="flex flex-col items-center text-center">
+                <div class="flex size-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+                    <flux:icon.building-office-2 class="size-5 text-purple-600" />
+                </div>
+                <p class="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">4. Create Project</p>
+                <p class="mt-0.5 max-w-[110px] text-xs text-zinc-400">Start project and assign the client</p>
+            </div>
+
+        </div>
+    </div>
+
     {{-- Table --}}
     <div class="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         <div class="overflow-x-auto">
@@ -125,7 +190,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         <tbody class="divide-y divide-zinc-100 dark:divide-zinc-700">
                                             @foreach($client->quotes as $quote)
                                                 <tr class="hover:bg-zinc-100/50 dark:hover:bg-zinc-700/30">
-                                                    <td class="py-2 font-mono font-semibold text-zinc-700 dark:text-zinc-300">{{ $quote->number }}</td>
+                                                    <td class="py-2 font-mono font-semibold text-amber-500">{{ $quote->number }}</td>
                                                     <td class="py-2 text-zinc-500">{{ $quote->quote_date->format('M d, Y') }}</td>
                                                     <td class="py-2">
                                                         <flux:badge size="sm" color="{{ match($quote->status) { 'draft' => 'zinc', 'sent' => 'blue', 'accepted' => 'green', 'rejected' => 'red' } }}">

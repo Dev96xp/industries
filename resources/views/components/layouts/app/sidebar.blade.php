@@ -67,6 +67,10 @@
                     <flux:navlist.item icon="clock" :href="route('admin.time-entries')"
                         :current="request()->routeIs('admin.time-entries*')" wire:navigate>Time Entries</flux:navlist.item>
                 @endcan
+                @role('superadmin')
+                    <flux:navlist.item icon="cog-6-tooth" :href="route('admin.system-settings')"
+                        :current="request()->routeIs('admin.system-settings')" wire:navigate>System Settings</flux:navlist.item>
+                @endrole
             </flux:navlist.group>
         </flux:navlist>
 
@@ -174,6 +178,7 @@
     {{ $slot }}
 
     @fluxScripts
+    @stack('scripts')
 </body>
 
 </html>

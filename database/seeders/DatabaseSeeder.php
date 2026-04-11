@@ -18,7 +18,8 @@ class DatabaseSeeder extends Seeder
         Storage::disk('public')->deleteDirectory('photos');
         Storage::disk('public')->deleteDirectory('project-photos');
 
-        $this->call(RolesAndPermissionsSeeder::class);
+        $this->call(RolesAndPermissionsSeeder::class);   // Ejecuta el seeder de roles y permisos antes de crear usuarios
+        $this->call(UserSeeder::class);                  // Ejecuta el seeder de usuarios
 
         $superAdmin = User::firstOrCreate(
             ['email' => 'admin@industries.com'],

@@ -140,6 +140,27 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->project->refresh();
     }
 
+    public function saveAnnotatedPhoto(string $dataUrl): void
+    {
+        $data      = substr($dataUrl, strpos($dataUrl, ',') + 1);
+        $imageData = base64_decode($data);
+        $filename  = 'annotated_' . time() . '_' . \Illuminate\Support\Str::random(8) . '.jpg';
+        $path      = 'project-photos/' . $filename;
+
+        \Storage::disk('public')->put($path, $imageData);
+
+        ProjectPhoto::create([
+            'project_id'    => $this->project->id,
+            'path'          => $path,
+            'disk'          => 'public',
+            'mime_type'     => 'image/jpeg',
+            'original_name' => $filename,
+        ]);
+
+        $this->project->refresh();
+        session()->flash('success', 'Annotated photo saved.');
+    }
+
     public function saveExpense(): void
     {
         $validated = $this->validate([
@@ -1098,12 +1119,92 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             {{-- Image gallery --}}
             @if($photos->where('mime_type', '!=', 'application/pdf')->isNotEmpty())
-                <div class="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-3">
+                <div
+                    x-data="{
+                        lightbox: null,
+                        drawing: false,
+                        color: '#ef4444',
+                        penSize: 4,
+                        isEraser: false,
+                        lastX: 0, lastY: 0,
+                        saving: false,
+
+                        openLightbox(url) {
+                            this.lightbox = url;
+                            this.isEraser = false;
+                            this.$nextTick(() => { this.initCanvas(); });
+                        },
+
+                        initCanvas() {
+                            const canvas = this.$refs.canvas;
+                            const ctx = canvas.getContext('2d');
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            img.onload = () => {
+                                canvas.width = img.naturalWidth;
+                                canvas.height = img.naturalHeight;
+                                ctx.drawImage(img, 0, 0);
+                            };
+                            img.src = this.lightbox;
+                        },
+
+                        getPos(e) {
+                            const canvas = this.$refs.canvas;
+                            const rect = canvas.getBoundingClientRect();
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+                            const src = e.touches ? e.touches[0] : e;
+                            return {
+                                x: (src.clientX - rect.left) * scaleX,
+                                y: (src.clientY - rect.top) * scaleY
+                            };
+                        },
+
+                        startDraw(e) {
+                            e.preventDefault();
+                            this.drawing = true;
+                            const pos = this.getPos(e);
+                            this.lastX = pos.x; this.lastY = pos.y;
+                        },
+
+                        draw(e) {
+                            e.preventDefault();
+                            if (!this.drawing) return;
+                            const canvas = this.$refs.canvas;
+                            const ctx = canvas.getContext('2d');
+                            const pos = this.getPos(e);
+                            ctx.beginPath();
+                            ctx.moveTo(this.lastX, this.lastY);
+                            ctx.lineTo(pos.x, pos.y);
+                            ctx.strokeStyle = this.isEraser ? '#ffffff' : this.color;
+                            ctx.lineWidth = this.isEraser ? this.penSize * 6 : this.penSize;
+                            ctx.lineCap = 'round';
+                            ctx.lineJoin = 'round';
+                            ctx.stroke();
+                            this.lastX = pos.x; this.lastY = pos.y;
+                        },
+
+                        stopDraw() { this.drawing = false; },
+
+                        clearCanvas() { this.initCanvas(); },
+
+                        async saveAnnotated() {
+                            this.saving = true;
+                            const dataUrl = this.$refs.canvas.toDataURL('image/jpeg', 0.92);
+                            await $wire.saveAnnotatedPhoto(dataUrl);
+                            this.saving = false;
+                            this.lightbox = null;
+                        }
+                    }"
+                    class="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-3"
+                >
                     @foreach($photos->where('mime_type', '!=', 'application/pdf') as $photo)
                         <div class="group relative overflow-hidden rounded-xl border border-zinc-100 dark:border-zinc-800">
-                            <img src="{{ $photo->url() }}" class="h-32 w-full object-cover transition group-hover:scale-105" alt="">
-                            <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition group-hover:opacity-100">
-                                <div class="flex items-center justify-end p-2">
+                            <img src="{{ $photo->url() }}"
+                                x-on:click="openLightbox('{{ $photo->url() }}')"
+                                class="h-32 w-full object-cover transition group-hover:scale-105 cursor-zoom-in" alt="">
+                            <div class="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition group-hover:opacity-100">
+                                <div class="pointer-events-auto flex items-center justify-end p-2">
                                     <button
                                         wire:click="deletePhoto({{ $photo->id }})"
                                         wire:confirm="Remove this photo?"
@@ -1117,12 +1218,211 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </div>
                         </div>
                     @endforeach
+
+                    {{-- Annotation Lightbox --}}
+                    <div
+                        x-show="lightbox"
+                        x-on:keydown.escape.window="lightbox = null"
+                        x-transition:enter="transition ease-out duration-200"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition ease-in duration-150"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="fixed inset-0 z-50 flex flex-col-reverse bg-black"
+                        style="display: none;"
+                        x-on:click.stop
+                    >
+                        {{-- Toolbar --}}
+                        <div class="flex shrink-0 items-center gap-2 bg-zinc-900 px-3 py-2 overflow-x-auto">
+                            {{-- Colors --}}
+                            <template x-for="c in ['#ef4444','#3b82f6','#22c55e','#eab308','#ffffff','#18181b']">
+                                <button
+                                    x-on:click="color = c; isEraser = false"
+                                    :style="'background:' + c"
+                                    :class="color === c && !isEraser ? 'ring-2 ring-offset-1 ring-offset-zinc-900 ring-white' : ''"
+                                    class="size-7 shrink-0 rounded-full border border-white/20 transition"
+                                ></button>
+                            </template>
+
+                            <div class="mx-1 h-6 w-px bg-white/20 shrink-0"></div>
+
+                            {{-- Pen size --}}
+                            <template x-for="s in [2, 4, 8]">
+                                <button
+                                    x-on:click="penSize = s; isEraser = false"
+                                    :class="penSize === s && !isEraser ? 'bg-white/30' : 'bg-white/10'"
+                                    class="flex size-7 shrink-0 items-center justify-center rounded-full transition"
+                                >
+                                    <div :style="'width:' + s + 'px; height:' + s + 'px'" class="rounded-full bg-white"></div>
+                                </button>
+                            </template>
+
+                            <div class="mx-1 h-6 w-px bg-white/20 shrink-0"></div>
+
+                            {{-- Eraser --}}
+                            <button
+                                x-on:click="isEraser = !isEraser"
+                                :class="isEraser ? 'bg-amber-500 text-black' : 'bg-white/10 text-white'"
+                                class="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition"
+                            >
+                                <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.893 13.393-1.135-1.135a2.252 2.252 0 0 1 0-3.182l3.184-3.185a.5.5 0 0 0-.707-.707l-3.185 3.185a3.752 3.752 0 0 0 0 5.303l1.135 1.135c.141.14.33.219.526.219h2.5a.75.75 0 0 0 0-1.5h-2.012a.25.25 0 0 1-.177-.073ZM2.436 17.25a.75.75 0 0 1 0-1.06l9.19-9.19a.75.75 0 0 1 1.06 0l1.94 1.94a.75.75 0 0 1 0 1.06l-9.19 9.19a.75.75 0 0 1-1.06 0l-1.94-1.94Z"/></svg>
+                                Eraser
+                            </button>
+
+                            {{-- Clear --}}
+                            <button
+                                x-on:click="clearCanvas()"
+                                class="flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20"
+                            >
+                                <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                                Clear
+                            </button>
+
+                            <div class="ml-auto flex shrink-0 items-center gap-2">
+                                {{-- Save --}}
+                                <button
+                                    x-on:click="saveAnnotated()"
+                                    :disabled="saving"
+                                    class="flex items-center gap-1 rounded-full bg-green-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-600 disabled:opacity-50"
+                                >
+                                    <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                                    <span x-text="saving ? 'Saving...' : 'Save'"></span>
+                                </button>
+
+                                {{-- Close --}}
+                                <button
+                                    x-on:click="lightbox = null"
+                                    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/30"
+                                >
+                                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Canvas --}}
+                        <div class="flex flex-1 items-center justify-center overflow-hidden bg-zinc-950 p-2">
+                            <canvas
+                                x-ref="canvas"
+                                x-on:mousedown="startDraw($event)"
+                                x-on:mousemove="draw($event)"
+                                x-on:mouseup="stopDraw()"
+                                x-on:mouseleave="stopDraw()"
+                                x-on:touchstart.passive="startDraw($event)"
+                                x-on:touchmove="draw($event)"
+                                x-on:touchend="stopDraw()"
+                                :style="isEraser ? 'cursor: cell' : 'cursor: crosshair'"
+                                class="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                            ></canvas>
+                        </div>
+                    </div>
                 </div>
             @endif
 
             {{-- PDF list --}}
             @if($photos->where('mime_type', 'application/pdf')->isNotEmpty())
-                <div class="mb-5 divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                <div
+                    x-data="{
+                        pdfUrl: null,
+                        currentPage: 1,
+                        totalPages: 0,
+                        loading: false,
+                        drawing: false,
+                        color: '#ef4444',
+                        penSize: 4,
+                        isEraser: false,
+                        lastX: 0, lastY: 0,
+                        saving: false,
+
+                        async openPdf(url) {
+                            this.pdfUrl = url;
+                            this.currentPage = 1;
+                            this.isEraser = false;
+                            this.loading = true;
+                            await this.$nextTick();
+                            const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                            window._pdfDoc = await pdfjsLib.getDocument(url).promise;
+                            this.totalPages = window._pdfDoc.numPages;
+                            await this.renderPage(this.currentPage);
+                            this.loading = false;
+                        },
+
+                        async renderPage(num) {
+                            this.loading = true;
+                            const page = await window._pdfDoc.getPage(num);
+                            const canvas = this.$refs.pdfCanvas;
+                            const viewport = page.getViewport({ scale: 2 });
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            canvas.style.width = '';
+                            canvas.style.height = '';
+                            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                            this.loading = false;
+                        },
+
+                        async prevPage() {
+                            if (this.currentPage <= 1) return;
+                            this.currentPage--;
+                            await this.renderPage(this.currentPage);
+                        },
+
+                        async nextPage() {
+                            if (this.currentPage >= this.totalPages) return;
+                            this.currentPage++;
+                            await this.renderPage(this.currentPage);
+                        },
+
+                        getPos(e) {
+                            const canvas = this.$refs.pdfCanvas;
+                            const rect = canvas.getBoundingClientRect();
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+                            const src = e.touches ? e.touches[0] : e;
+                            return {
+                                x: (src.clientX - rect.left) * scaleX,
+                                y: (src.clientY - rect.top) * scaleY
+                            };
+                        },
+
+                        startDraw(e) {
+                            e.preventDefault();
+                            this.drawing = true;
+                            const pos = this.getPos(e);
+                            this.lastX = pos.x; this.lastY = pos.y;
+                        },
+
+                        draw(e) {
+                            e.preventDefault();
+                            if (!this.drawing) return;
+                            const canvas = this.$refs.pdfCanvas;
+                            const ctx = canvas.getContext('2d');
+                            const pos = this.getPos(e);
+                            ctx.beginPath();
+                            ctx.moveTo(this.lastX, this.lastY);
+                            ctx.lineTo(pos.x, pos.y);
+                            ctx.strokeStyle = this.isEraser ? '#ffffff' : this.color;
+                            ctx.lineWidth = this.isEraser ? this.penSize * 6 : this.penSize;
+                            ctx.lineCap = 'round';
+                            ctx.lineJoin = 'round';
+                            ctx.stroke();
+                            this.lastX = pos.x; this.lastY = pos.y;
+                        },
+
+                        stopDraw() { this.drawing = false; },
+
+                        async clearPage() { await this.renderPage(this.currentPage); },
+
+                        async saveAnnotated() {
+                            this.saving = true;
+                            const dataUrl = this.$refs.pdfCanvas.toDataURL('image/jpeg', 0.92);
+                            await $wire.saveAnnotatedPhoto(dataUrl);
+                            this.saving = false;
+                            this.pdfUrl = null;
+                        }
+                    }"
+                    class="mb-5 divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800"
+                >
                     @foreach($photos->where('mime_type', 'application/pdf') as $photo)
                         <div class="flex items-center gap-3 px-4 py-3">
                             <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/30">
@@ -1135,6 +1435,13 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 {{ $photo->original_name ?? basename($photo->path) }}
                             </a>
                             <button
+                                x-on:click="openPdf('{{ $photo->url() }}')"
+                                class="shrink-0 p-1.5 text-zinc-400 transition hover:text-amber-500"
+                                title="Annotate"
+                            >
+                                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"/></svg>
+                            </button>
+                            <button
                                 wire:click="deletePhoto({{ $photo->id }})"
                                 wire:confirm="Remove this file?"
                                 class="shrink-0 p-1.5 text-zinc-400 transition hover:text-red-500"
@@ -1145,6 +1452,105 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </button>
                         </div>
                     @endforeach
+
+                    {{-- PDF Annotation Modal --}}
+                    <div
+                        x-show="pdfUrl"
+                        x-on:keydown.escape.window="pdfUrl = null"
+                        x-transition:enter="transition ease-out duration-200"
+                        x-transition:enter-start="opacity-0"
+                        x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition ease-in duration-150"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="fixed inset-0 z-50 flex flex-col-reverse bg-black"
+                        style="display: none;"
+                        x-on:click.stop
+                    >
+                        {{-- Toolbar (now at bottom) --}}
+                        <div class="flex w-full shrink-0 items-center gap-2 bg-zinc-900 px-3 py-2 overflow-x-auto">
+                            {{-- Colors --}}
+                            <template x-for="c in ['#ef4444','#3b82f6','#22c55e','#eab308','#ffffff','#18181b']">
+                                <button
+                                    x-on:click="color = c; isEraser = false"
+                                    :style="'background:' + c"
+                                    :class="color === c && !isEraser ? 'ring-2 ring-offset-1 ring-offset-zinc-900 ring-white' : ''"
+                                    class="size-7 shrink-0 rounded-full border border-white/20 transition"
+                                ></button>
+                            </template>
+
+                            <div class="mx-1 h-6 w-px bg-white/20 shrink-0"></div>
+
+                            <template x-for="s in [2, 4, 8]">
+                                <button
+                                    x-on:click="penSize = s; isEraser = false"
+                                    :class="penSize === s && !isEraser ? 'bg-white/30' : 'bg-white/10'"
+                                    class="flex size-7 shrink-0 items-center justify-center rounded-full transition"
+                                >
+                                    <div :style="'width:' + s + 'px; height:' + s + 'px'" class="rounded-full bg-white"></div>
+                                </button>
+                            </template>
+
+                            <div class="mx-1 h-6 w-px bg-white/20 shrink-0"></div>
+
+                            <button x-on:click="isEraser = !isEraser"
+                                :class="isEraser ? 'bg-amber-500 text-black' : 'bg-white/10 text-white'"
+                                class="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition">
+                                <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m20.893 13.393-1.135-1.135a2.252 2.252 0 0 1 0-3.182l3.184-3.185a.5.5 0 0 0-.707-.707l-3.185 3.185a3.752 3.752 0 0 0 0 5.303l1.135 1.135c.141.14.33.219.526.219h2.5a.75.75 0 0 0 0-1.5h-2.012a.25.25 0 0 1-.177-.073ZM2.436 17.25a.75.75 0 0 1 0-1.06l9.19-9.19a.75.75 0 0 1 1.06 0l1.94 1.94a.75.75 0 0 1 0 1.06l-9.19 9.19a.75.75 0 0 1-1.06 0l-1.94-1.94Z"/></svg>
+                                Eraser
+                            </button>
+
+                            <button x-on:click="clearPage()"
+                                class="flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20">
+                                <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                                Clear
+                            </button>
+
+                            {{-- Page navigation --}}
+                            <div x-show="totalPages > 1" class="flex shrink-0 items-center gap-1">
+                                <div class="mx-1 h-6 w-px bg-white/20"></div>
+                                <button x-on:click="prevPage()" :disabled="currentPage <= 1"
+                                    class="flex size-7 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30">
+                                    <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+                                </button>
+                                <span class="text-xs text-zinc-400" x-text="currentPage + ' / ' + totalPages"></span>
+                                <button x-on:click="nextPage()" :disabled="currentPage >= totalPages"
+                                    class="flex size-7 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30">
+                                    <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+                                </button>
+                            </div>
+
+                            <div class="ml-auto flex shrink-0 items-center gap-2">
+                                <button x-on:click="saveAnnotated()" :disabled="saving || loading"
+                                    class="flex items-center gap-1 rounded-full bg-green-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-600 disabled:opacity-50">
+                                    <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+                                    <span x-text="saving ? 'Saving...' : 'Save as Image'"></span>
+                                </button>
+                                <button x-on:click="pdfUrl = null"
+                                    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/30">
+                                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {{-- Canvas --}}
+                        <div class="relative flex flex-1 items-center justify-center overflow-hidden bg-zinc-950 p-2" style="min-height:0">
+                            <div x-show="loading" class="absolute text-sm text-zinc-400">Loading PDF...</div>
+                            <canvas
+                                x-ref="pdfCanvas"
+                                x-show="!loading"
+                                x-on:mousedown="startDraw($event)"
+                                x-on:mousemove="draw($event)"
+                                x-on:mouseup="stopDraw()"
+                                x-on:mouseleave="stopDraw()"
+                                x-on:touchstart.passive="startDraw($event)"
+                                x-on:touchmove="draw($event)"
+                                x-on:touchend="stopDraw()"
+                                :style="isEraser ? 'cursor: cell; max-width:100%; max-height:100%; object-fit:contain' : 'cursor: crosshair; max-width:100%; max-height:100%; object-fit:contain'"
+                                class="rounded-lg shadow-2xl"
+                            ></canvas>
+                        </div>
+                    </div>
                 </div>
             @endif
 
@@ -1221,3 +1627,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     </div>
 
 </div>
+
+@push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+@endpush
