@@ -200,12 +200,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         try {
             $client = new \Anthropic\Client(apiKey: config('services.anthropic.api_key'));
 
-            $imageContent = file_get_contents($this->receiptImage->getRealPath());
-            $base64       = base64_encode($imageContent);
-            $detectedMime = $this->receiptImage->getMimeType() ?: 'image/jpeg';
-            // Anthropic supports: image/jpeg, image/png, image/gif, image/webp
-            $supportedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $mimeType = in_array($detectedMime, $supportedMimes) ? $detectedMime : 'image/jpeg';
+            // Resize to max 1000px before sending to API — much faster, OCR doesn't need full resolution
+            $manager      = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
+            $imageContent = (string) $manager->read($this->receiptImage->getRealPath())
+                ->scaleDown(width: 1000, height: 1800)
+                ->toJpeg(quality: 85);
+            $base64   = base64_encode($imageContent);
+            $mimeType = 'image/jpeg';
 
             $response = $client->messages->create(
                 maxTokens: 256,
