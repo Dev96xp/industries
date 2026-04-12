@@ -93,6 +93,21 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->geo_radius                = (string) $project->geo_radius;
     }
 
+    public function syncBudgetFromQuote(): void
+    {
+        $quote = $this->project->quotes()->where('status', 'accepted')->latest()->first();
+
+        if (! $quote) {
+            session()->flash('error', 'No accepted quote found for this project.');
+
+            return;
+        }
+
+        $this->project->update(['budget' => $quote->total]);
+        $this->budget = (string) $quote->total;
+        session()->flash('success', 'Budget updated from quote: $' . number_format($quote->total, 2));
+    }
+
     public function save(): void
     {
         $validated = $this->validate([
@@ -187,7 +202,10 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             $imageContent = file_get_contents($this->receiptImage->getRealPath());
             $base64       = base64_encode($imageContent);
-            $mimeType     = $this->receiptImage->getMimeType() ?: 'image/jpeg';
+            $detectedMime = $this->receiptImage->getMimeType() ?: 'image/jpeg';
+            // Anthropic supports: image/jpeg, image/png, image/gif, image/webp
+            $supportedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $mimeType = in_array($detectedMime, $supportedMimes) ? $detectedMime : 'image/jpeg';
 
             $response = $client->messages->create(
                 maxTokens: 256,
@@ -209,10 +227,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             );
 
             $text = trim($response->content[0]->text ?? '');
-            // Strip markdown code fences if present
-            $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
-            $text = preg_replace('/\s*```$/', '', $text);
-            $text = trim($text);
+
+            // Extract JSON object from anywhere in the response
+            if (preg_match('/\{.*\}/s', $text, $matches)) {
+                $text = $matches[0];
+            }
+
             $data = json_decode($text, true);
 
             if (is_array($data)) {
@@ -232,6 +252,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                 $validMethods = ['cash', 'check', 'visa', 'mastercard', 'bank_transfer', 'other'];
                 if (! empty($data['payment_method']) && in_array($data['payment_method'], $validMethods)) {
                     $this->expensePaymentMethod = $data['payment_method'];
+                }
+            } else {
+                // Fallback: try to extract just the amount with regex
+                if (preg_match('/\$?\s*(\d+[\.,]\d{2})/', $text, $m)) {
+                    $this->expenseAmount = str_replace(',', '.', $m[1]);
                 }
             }
 
@@ -643,7 +668,14 @@ new #[Layout('components.layouts.app')] class extends Component {
             <div class="grid gap-4 sm:grid-cols-3">
                 <flux:input wire:model="start_date" label="Start Date" type="date" />
                 <flux:input wire:model="estimated_completion_date" label="Est. Completion" type="date" />
-                <flux:input wire:model="budget" label="Budget ($)" type="number" step="100" />
+                <div class="flex flex-col gap-1">
+                    <flux:input wire:model="budget" label="Budget ($)" type="number" step="100" />
+                    @if($project->quotes()->where('status', 'accepted')->exists())
+                        <flux:button wire:click="syncBudgetFromQuote" wire:confirm="Update budget from the latest accepted quote?" size="xs" variant="ghost" icon="arrow-path">
+                            Sync from Quote
+                        </flux:button>
+                    @endif
+                </div>
             </div>
         </div>
 

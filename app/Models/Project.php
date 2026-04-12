@@ -73,6 +73,11 @@ class Project extends Model
         return $this->hasMany(TimeEntry::class)->orderByDesc('clock_in_at');
     }
 
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(Quote::class);
+    }
+
     public static function generateNumber(): string
     {
         $last = static::orderByDesc('id')->value('number');
