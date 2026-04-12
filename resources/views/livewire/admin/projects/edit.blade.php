@@ -45,7 +45,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public         $receiptImage         = null;
     public string  $receiptScanStatus    = ''; // '', 'scanning', 'done', 'error'
     public string  $receiptExistingPath  = '';
-    public string  $receiptCachedJpeg    = ''; // base64 of already-compressed image, reused on save
+    public string  $receiptTempPath      = ''; // temp file path of compressed image, reused on save
 
     // Income form
     public string  $incomeDescription    = '';
@@ -201,14 +201,16 @@ new #[Layout('components.layouts.app')] class extends Component {
         try {
             $client = new \Anthropic\Client(apiKey: config('services.anthropic.api_key'));
 
-            // Resize to max 1000px before sending to API — cache result to reuse on save
+            // Resize to max 1000px before sending to API — save to temp file to reuse on save
             $manager      = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
             $imageContent = (string) $manager->read($this->receiptImage->getRealPath())
                 ->scaleDown(width: 1000, height: 1800)
                 ->toJpeg(quality: 85);
-            $this->receiptCachedJpeg = base64_encode($imageContent);
-            $base64                  = $this->receiptCachedJpeg;
-            $mimeType                = 'image/jpeg';
+            $tempPath            = tempnam(sys_get_temp_dir(), 'receipt_') . '.jpg';
+            file_put_contents($tempPath, $imageContent);
+            $this->receiptTempPath = $tempPath;
+            $base64                = base64_encode($imageContent);
+            $mimeType              = 'image/jpeg';
 
             $response = $client->messages->create(
                 maxTokens: 256,
@@ -340,9 +342,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $filename = 'receipts/' . \Illuminate\Support\Str::uuid() . '.jpg';
 
-        if ($this->receiptCachedJpeg) {
-            // Reuse already-compressed image from scan — no need to process again
-            Storage::disk('public')->put($filename, base64_decode($this->receiptCachedJpeg));
+        if ($this->receiptTempPath && file_exists($this->receiptTempPath)) {
+            // Reuse already-compressed temp file from scan — no need to process again
+            Storage::disk('public')->put($filename, file_get_contents($this->receiptTempPath));
+            @unlink($this->receiptTempPath);
         } else {
             $manager = new \Intervention\Image\ImageManager(
                 new \Intervention\Image\Drivers\Gd\Driver()
@@ -365,10 +368,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->expenseNotes         = '';
         $this->expensePaymentMethod = 'other';
         $this->editingExpenseId     = null;
-        $this->receiptImage         = null;
-        $this->receiptScanStatus    = '';
-        $this->receiptExistingPath  = '';
-        $this->receiptCachedJpeg    = '';
+        $this->receiptImage      = null;
+        $this->receiptScanStatus = '';
+        $this->receiptExistingPath = '';
+        if ($this->receiptTempPath && file_exists($this->receiptTempPath)) {
+            @unlink($this->receiptTempPath);
+        }
+        $this->receiptTempPath = '';
         $this->dispatch('receipt-reset');
     }
 
