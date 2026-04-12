@@ -45,6 +45,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public         $receiptImage         = null;
     public string  $receiptScanStatus    = ''; // '', 'scanning', 'done', 'error'
     public string  $receiptExistingPath  = '';
+    public string  $receiptCachedJpeg    = ''; // base64 of already-compressed image, reused on save
 
     // Income form
     public string  $incomeDescription    = '';
@@ -200,13 +201,14 @@ new #[Layout('components.layouts.app')] class extends Component {
         try {
             $client = new \Anthropic\Client(apiKey: config('services.anthropic.api_key'));
 
-            // Resize to max 1000px before sending to API — much faster, OCR doesn't need full resolution
+            // Resize to max 1000px before sending to API — cache result to reuse on save
             $manager      = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
             $imageContent = (string) $manager->read($this->receiptImage->getRealPath())
                 ->scaleDown(width: 1000, height: 1800)
                 ->toJpeg(quality: 85);
-            $base64   = base64_encode($imageContent);
-            $mimeType = 'image/jpeg';
+            $this->receiptCachedJpeg = base64_encode($imageContent);
+            $base64                  = $this->receiptCachedJpeg;
+            $mimeType                = 'image/jpeg';
 
             $response = $client->messages->create(
                 maxTokens: 256,
@@ -338,15 +340,18 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $filename = 'receipts/' . \Illuminate\Support\Str::uuid() . '.jpg';
 
-        $manager = new \Intervention\Image\ImageManager(
-            new \Intervention\Image\Drivers\Gd\Driver()
-        );
-
-        $image = $manager->read($this->receiptImage->getRealPath())
-            ->scaleDown(width: 1500, height: 2000)
-            ->toJpeg(quality: 80);
-
-        Storage::disk('public')->put($filename, $image);
+        if ($this->receiptCachedJpeg) {
+            // Reuse already-compressed image from scan — no need to process again
+            Storage::disk('public')->put($filename, base64_decode($this->receiptCachedJpeg));
+        } else {
+            $manager = new \Intervention\Image\ImageManager(
+                new \Intervention\Image\Drivers\Gd\Driver()
+            );
+            $image = $manager->read($this->receiptImage->getRealPath())
+                ->scaleDown(width: 1500, height: 2000)
+                ->toJpeg(quality: 80);
+            Storage::disk('public')->put($filename, $image);
+        }
 
         return $filename;
     }
@@ -363,6 +368,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->receiptImage         = null;
         $this->receiptScanStatus    = '';
         $this->receiptExistingPath  = '';
+        $this->receiptCachedJpeg    = '';
+        $this->dispatch('receipt-reset');
     }
 
     public function saveIncome(): void
@@ -1259,7 +1266,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:input wire:model="expenseNotes" label="Notes (optional)" placeholder="Additional details..." />
 
                 {{-- Receipt Capture --}}
-                <div x-data="{ previewUrl: null }" class="flex flex-col gap-2">
+                <div x-data="{ previewUrl: null }"
+                     @receipt-reset.window="previewUrl = null; $refs.receiptInput && ($refs.receiptInput.value = '')"
+                     class="flex flex-col gap-2">
                     <div class="flex items-center gap-3">
                         <label class="cursor-pointer">
                             <input type="file"
