@@ -1272,27 +1272,54 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:input wire:model="expenseNotes" label="Notes (optional)" placeholder="Additional details..." />
 
                 {{-- Receipt Capture --}}
-                <div x-data="{ previewUrl: null }"
-                     @receipt-reset.window="previewUrl = null; $refs.receiptInput && ($refs.receiptInput.value = '')"
+                <div x-data="{
+                        previewUrl: null,
+                        uploading: false,
+                        compressAndUpload(file) {
+                            if (!file) return;
+                            this.uploading = true;
+                            this.previewUrl = URL.createObjectURL(file);
+                            const img = new Image();
+                            img.onload = () => {
+                                const maxW = 800, maxH = 1600;
+                                let w = img.width, h = img.height;
+                                if (w > maxW || h > maxH) {
+                                    const ratio = Math.min(maxW / w, maxH / h);
+                                    w = Math.round(w * ratio);
+                                    h = Math.round(h * ratio);
+                                }
+                                const canvas = document.createElement('canvas');
+                                canvas.width = w; canvas.height = h;
+                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                                canvas.toBlob((blob) => {
+                                    const compressed = new File([blob], 'receipt.jpg', { type: 'image/jpeg' });
+                                    $wire.upload('receiptImage', compressed,
+                                        () => { this.uploading = false; },
+                                        () => { this.uploading = false; },
+                                        () => {}
+                                    );
+                                }, 'image/jpeg', 0.82);
+                            };
+                            img.src = this.previewUrl;
+                        }
+                     }"
+                     @receipt-reset.window="previewUrl = null; uploading = false; $refs.receiptInput && ($refs.receiptInput.value = '')"
                      class="flex flex-col gap-2">
                     <div class="flex items-center gap-3">
                         <label class="cursor-pointer">
                             <input type="file"
-                                   wire:model="receiptImage"
                                    accept="image/*"
                                    capture="environment"
                                    class="hidden"
                                    x-ref="receiptInput"
-                                   @change="previewUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null">
+                                   @change="compressAndUpload($event.target.files[0])">
                             <flux:button type="button" icon="camera" variant="ghost" size="sm"
                                          @click.prevent="$refs.receiptInput.click()">
                                 Capturar Recibo
                             </flux:button>
                         </label>
 
-                        <div wire:loading wire:target="receiptImage" class="text-xs text-zinc-400">
-                            Subiendo...
-                        </div>
+                        <span x-show="uploading" class="text-xs text-zinc-400">Subiendo...</span>
 
                         @if($receiptScanStatus === 'scanning')
                             <span class="text-xs text-blue-500">Analizando recibo...</span>
@@ -1308,7 +1335,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="relative">
                             <img :src="previewUrl" class="h-28 w-full rounded-lg border border-zinc-200 object-cover dark:border-zinc-700">
                             <button type="button"
-                                    @click="previewUrl = null; $refs.receiptInput.value = ''; $wire.set('receiptImage', null); $wire.set('receiptScanStatus', '')"
+                                    @click="previewUrl = null; uploading = false; $refs.receiptInput.value = ''; $wire.set('receiptImage', null); $wire.set('receiptScanStatus', '')"
                                     class="absolute right-1 top-1 rounded-full bg-zinc-800/70 p-0.5 text-white transition hover:bg-red-500">
                                 <flux:icon name="x-mark" class="size-3" />
                             </button>
