@@ -9,7 +9,7 @@ use Spatie\Permission\Models\Role;
 new #[Layout('components.layouts.app')] class extends Component {
     public string $name                     = '';
     public string $description              = '';
-    public string $status                   = 'planning';
+    public string $status                   = 'draft';
     public string $address                  = '';
     public string $start_date               = '';
     public string $estimated_completion_date = '';
@@ -23,7 +23,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $validated = $this->validate([
             'name'                      => ['required', 'string', 'max:255'],
             'description'               => ['nullable', 'string'],
-            'status'                    => ['required', 'in:planning,in_progress,completed'],
+            'status'                    => ['required', 'in:draft,planning,in_progress,on_hold,completed,cancelled'],
             'address'                   => ['nullable', 'string', 'max:255'],
             'start_date'                => ['nullable', 'date'],
             'estimated_completion_date' => ['nullable', 'date'],
@@ -73,9 +73,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:textarea wire:model="description" label="Description" rows="3" placeholder="Brief description of the project..." />
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:select wire:model="status" label="Status">
+                        <flux:select.option value="draft">Draft</flux:select.option>
                         <flux:select.option value="planning">Planning</flux:select.option>
                         <flux:select.option value="in_progress">In Progress</flux:select.option>
+                        <flux:select.option value="on_hold">On Hold</flux:select.option>
                         <flux:select.option value="completed">Completed</flux:select.option>
+                        <flux:select.option value="cancelled">Cancelled</flux:select.option>
                     </flux:select>
                     <flux:select wire:model="client_user_id" label="Assigned Client">
                         <flux:select.option value="">— No client —</flux:select.option>

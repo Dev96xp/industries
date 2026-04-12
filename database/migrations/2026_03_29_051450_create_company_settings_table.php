@@ -24,6 +24,9 @@ return new class extends Migration
             $table->string('facebook')->nullable();
             $table->string('instagram')->nullable();
             $table->string('linkedin')->nullable();
+            $table->unsignedInteger('livewire_max_payload_mb')->default(8);
+            $table->boolean('ip_restriction_enabled')->default(false);
+            $table->text('allowed_ips')->nullable();
             $table->timestamps();
         });
     }

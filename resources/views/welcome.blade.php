@@ -412,7 +412,72 @@
                     </div>
                 </div>
 
-                @if($featuredPhotos->isNotEmpty())
+                @if($featuredProjects->isNotEmpty())
+                    {{-- Featured projects from the admin --}}
+                    @php $firstProject = $featuredProjects->first(); $restProjects = $featuredProjects->skip(1); @endphp
+
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                        {{-- Main featured project --}}
+                        <div class="lg:col-span-2">
+                            <div class="overflow-hidden rounded-2xl border border-dove-dark bg-white shadow-sm sm:rounded-3xl">
+                                <div class="aspect-[16/9] overflow-hidden bg-blue-50">
+                                    @if($firstProject->photos->isNotEmpty())
+                                        <img src="{{ $firstProject->photos->first()->url() }}" alt="{{ $firstProject->name }}" class="h-full w-full object-cover">
+                                    @else
+                                        <div class="flex h-full items-center justify-center text-5xl">🏗️</div>
+                                    @endif
+                                </div>
+                                <div class="p-5 sm:p-8">
+                                    <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">{{ ucfirst($firstProject->status) }}</span>
+                                    <h3 class="mt-3 text-lg font-bold text-charcoal sm:text-xl">{{ $firstProject->name }}</h3>
+                                    @if($firstProject->description)
+                                        <p class="mt-2 text-sm text-zinc-500">{{ Str::limit($firstProject->description, 120) }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Side projects --}}
+                        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:flex lg:flex-col">
+                            @foreach($restProjects->take(2) as $project)
+                                <div class="overflow-hidden rounded-2xl border border-dove-dark bg-white shadow-sm sm:rounded-3xl lg:flex-1">
+                                    <div class="aspect-video overflow-hidden bg-blue-50">
+                                        @if($project->photos->isNotEmpty())
+                                            <img src="{{ $project->photos->first()->url() }}" alt="{{ $project->name }}" class="h-full w-full object-cover">
+                                        @else
+                                            <div class="flex h-full items-center justify-center text-3xl">🏗️</div>
+                                        @endif
+                                    </div>
+                                    <div class="p-4 sm:p-6">
+                                        <span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">{{ ucfirst($project->status) }}</span>
+                                        <h3 class="mt-2 font-bold text-charcoal text-sm sm:text-base">{{ $project->name }}</h3>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    @if($restProjects->count() > 2)
+                        <div class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+                            @foreach($restProjects->skip(2)->take(3) as $project)
+                                <div class="overflow-hidden rounded-2xl border border-dove-dark bg-white shadow-sm">
+                                    <div class="aspect-video overflow-hidden bg-blue-50">
+                                        @if($project->photos->isNotEmpty())
+                                            <img src="{{ $project->photos->first()->url() }}" alt="{{ $project->name }}" class="h-full w-full object-cover">
+                                        @else
+                                            <div class="flex h-full items-center justify-center text-3xl">🏗️</div>
+                                        @endif
+                                    </div>
+                                    <div class="p-4 sm:p-6">
+                                        <span class="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">{{ ucfirst($project->status) }}</span>
+                                        <h3 class="mt-2 font-semibold text-charcoal text-sm sm:text-base">{{ $project->name }}</h3>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                @elseif($featuredPhotos->isNotEmpty())
                     {{-- Real photos from the database --}}
                     @php $first = $featuredPhotos->first(); $rest = $featuredPhotos->skip(1); @endphp
 

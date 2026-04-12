@@ -36,7 +36,11 @@
 
                 @can('manage projects')
                     <flux:navlist.item icon="folder" :href="route('admin.projects')"
-                        :current="request()->routeIs('admin.projects*')" wire:navigate>Projects</flux:navlist.item>
+                        :current="request()->routeIs('admin.projects') || request()->routeIs('admin.projects.create') || request()->routeIs('admin.projects.edit')" wire:navigate>Projects</flux:navlist.item>
+                    <flux:navlist.item icon="view-columns" :href="route('admin.projects.kanban')"
+                        :current="request()->routeIs('admin.projects.kanban')" wire:navigate>Board</flux:navlist.item>
+                    <flux:navlist.item icon="receipt-percent" :href="route('admin.receipts')"
+                        :current="request()->routeIs('admin.receipts')" wire:navigate>Receipts</flux:navlist.item>
                 @endcan
 
                 @can('manage contractors')

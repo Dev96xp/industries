@@ -8,6 +8,7 @@ use App\Models\ProjectSubtask;
 use App\Models\Contractor;
 use App\Models\ProjectTask;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
@@ -21,7 +22,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public string $name                      = '';
     public string $description               = '';
-    public string $status                    = 'planning';
+    public string $status                    = 'draft';
     public string $address                   = '';
     public string $start_date                = '';
     public string $estimated_completion_date = '';
@@ -41,6 +42,9 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string  $expenseNotes         = '';
     public string  $expensePaymentMethod = 'other';
     public ?int    $editingExpenseId     = null;
+    public         $receiptImage         = null;
+    public string  $receiptScanStatus    = ''; // '', 'scanning', 'done', 'error'
+    public string  $receiptExistingPath  = '';
 
     // Income form
     public string  $incomeDescription    = '';
@@ -94,7 +98,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $validated = $this->validate([
             'name'                      => ['required', 'string', 'max:255'],
             'description'               => ['nullable', 'string'],
-            'status'                    => ['required', 'in:planning,in_progress,completed'],
+            'status'                    => ['required', 'in:draft,planning,in_progress,on_hold,completed,cancelled'],
             'address'                   => ['nullable', 'string', 'max:255'],
             'start_date'                => ['nullable', 'date'],
             'estimated_completion_date' => ['nullable', 'date'],
@@ -161,6 +165,82 @@ new #[Layout('components.layouts.app')] class extends Component {
         session()->flash('success', 'Annotated photo saved.');
     }
 
+    public function updatedReceiptImage(): void
+    {
+        if (! $this->receiptImage) {
+            return;
+        }
+
+        $this->scanReceipt();
+    }
+
+    public function scanReceipt(): void
+    {
+        if (! $this->receiptImage) {
+            return;
+        }
+
+        $this->receiptScanStatus = 'scanning';
+
+        try {
+            $client = new \Anthropic\Client(apiKey: config('services.anthropic.api_key'));
+
+            $imageContent = file_get_contents($this->receiptImage->getRealPath());
+            $base64       = base64_encode($imageContent);
+            $mimeType     = $this->receiptImage->getMimeType() ?: 'image/jpeg';
+
+            $response = $client->messages->create(
+                maxTokens: 256,
+                model: config('services.anthropic.model'),
+                messages: [
+                    [
+                        'role'    => 'user',
+                        'content' => [
+                            \Anthropic\Messages\ImageBlockParam::with(
+                                source: \Anthropic\Messages\Base64ImageSource::with(
+                                    data: $base64,
+                                    mediaType: $mimeType,
+                                )
+                            ),
+                            ['type' => 'text', 'text' => 'Analyze this receipt and extract the following. Reply with ONLY valid JSON, no extra text: {"amount": "total numeric amount, no currency symbol, e.g. 45.99", "date": "date in YYYY-MM-DD format or empty string if not found", "description": "store or company name, or empty string if not found", "payment_method": "one of: cash, check, visa, mastercard, bank_transfer, other — based on what the receipt shows, default to other if not clear"}'],
+                        ],
+                    ],
+                ],
+            );
+
+            $text = trim($response->content[0]->text ?? '');
+            // Strip markdown code fences if present
+            $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
+            $text = preg_replace('/\s*```$/', '', $text);
+            $text = trim($text);
+            $data = json_decode($text, true);
+
+            if (is_array($data)) {
+                $amount = preg_replace('/[^0-9.]/', '', $data['amount'] ?? '');
+                if ($amount) {
+                    $this->expenseAmount = $amount;
+                }
+
+                if (! empty($data['date']) && strtotime($data['date'])) {
+                    $this->expenseDate = date('Y-m-d', strtotime($data['date']));
+                }
+
+                if (! empty($data['description']) && empty($this->expenseDescription)) {
+                    $this->expenseDescription = $data['description'];
+                }
+
+                $validMethods = ['cash', 'check', 'visa', 'mastercard', 'bank_transfer', 'other'];
+                if (! empty($data['payment_method']) && in_array($data['payment_method'], $validMethods)) {
+                    $this->expensePaymentMethod = $data['payment_method'];
+                }
+            }
+
+            $this->receiptScanStatus = 'done';
+        } catch (\Throwable) {
+            $this->receiptScanStatus = 'error';
+        }
+    }
+
     public function saveExpense(): void
     {
         $validated = $this->validate([
@@ -180,6 +260,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             'notes'          => $validated['expenseNotes'] ?: null,
             'payment_method' => $validated['expensePaymentMethod'],
         ];
+
+        if ($this->receiptImage) {
+            $data['receipt_path'] = $this->storeCompressedReceipt();
+        } elseif ($this->receiptExistingPath) {
+            $data['receipt_path'] = $this->receiptExistingPath;
+        }
 
         if ($this->editingExpenseId) {
             ProjectExpense::findOrFail($this->editingExpenseId)->update($data);
@@ -201,6 +287,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->expenseDate           = $expense->expense_date->format('Y-m-d');
         $this->expenseNotes          = $expense->notes ?? '';
         $this->expensePaymentMethod  = $expense->payment_method;
+        $this->receiptExistingPath   = $expense->receipt_path ?? '';
         $this->modal('expense-form')->show();
     }
 
@@ -221,6 +308,23 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->modal('expense-form')->close();
     }
 
+    private function storeCompressedReceipt(): string
+    {
+        $filename = 'receipts/' . \Illuminate\Support\Str::uuid() . '.jpg';
+
+        $manager = new \Intervention\Image\ImageManager(
+            new \Intervention\Image\Drivers\Gd\Driver()
+        );
+
+        $image = $manager->read($this->receiptImage->getRealPath())
+            ->scaleDown(width: 1500, height: 2000)
+            ->toJpeg(quality: 80);
+
+        Storage::disk('public')->put($filename, $image);
+
+        return $filename;
+    }
+
     private function resetExpenseForm(): void
     {
         $this->expenseDescription   = '';
@@ -230,6 +334,9 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->expenseNotes         = '';
         $this->expensePaymentMethod = 'other';
         $this->editingExpenseId     = null;
+        $this->receiptImage         = null;
+        $this->receiptScanStatus    = '';
+        $this->receiptExistingPath  = '';
     }
 
     public function saveIncome(): void
@@ -512,9 +619,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:textarea wire:model="description" label="Description" rows="3" />
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:select wire:model="status" label="Status">
+                        <flux:select.option value="draft">Draft</flux:select.option>
                         <flux:select.option value="planning">Planning</flux:select.option>
                         <flux:select.option value="in_progress">In Progress</flux:select.option>
+                        <flux:select.option value="on_hold">On Hold</flux:select.option>
                         <flux:select.option value="completed">Completed</flux:select.option>
+                        <flux:select.option value="cancelled">Cancelled</flux:select.option>
                     </flux:select>
                     <flux:select wire:model="client_user_id" label="Assigned Client">
                         <flux:select.option value="">— No client —</flux:select.option>
@@ -1044,7 +1154,20 @@ new #[Layout('components.layouts.app')] class extends Component {
             @else
                 <div class="divide-y divide-zinc-100 dark:divide-zinc-800 rounded-xl border border-zinc-100 dark:border-zinc-800">
                     @foreach($expenses as $expense)
-                        <div class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex items-start justify-between gap-3 px-4 py-3">
+                            {{-- Receipt thumbnail --}}
+                            @if($expense->receipt_path)
+                                <a href="{{ Storage::url($expense->receipt_path) }}" target="_blank" class="shrink-0">
+                                    <img src="{{ Storage::url($expense->receipt_path) }}"
+                                         class="h-12 w-12 rounded-lg border border-zinc-200 object-cover dark:border-zinc-700 hover:opacity-80 transition"
+                                         title="Ver recibo">
+                                </a>
+                            @else
+                                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700">
+                                    <flux:icon.receipt-percent class="size-5 text-zinc-300 dark:text-zinc-600" />
+                                </div>
+                            @endif
+
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-medium text-zinc-800 dark:text-zinc-100 truncate">{{ $expense->description }}</span>
@@ -1101,6 +1224,58 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <flux:input wire:model="expenseDate" label="Date" type="date" />
                 </div>
                 <flux:input wire:model="expenseNotes" label="Notes (optional)" placeholder="Additional details..." />
+
+                {{-- Receipt Capture --}}
+                <div x-data="{ previewUrl: null }" class="flex flex-col gap-2">
+                    <div class="flex items-center gap-3">
+                        <label class="cursor-pointer">
+                            <input type="file"
+                                   wire:model="receiptImage"
+                                   accept="image/*"
+                                   capture="environment"
+                                   class="hidden"
+                                   x-ref="receiptInput"
+                                   @change="previewUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null">
+                            <flux:button type="button" icon="camera" variant="ghost" size="sm"
+                                         @click.prevent="$refs.receiptInput.click()">
+                                Capturar Recibo
+                            </flux:button>
+                        </label>
+
+                        <div wire:loading wire:target="receiptImage" class="text-xs text-zinc-400">
+                            Subiendo...
+                        </div>
+
+                        @if($receiptScanStatus === 'scanning')
+                            <span class="text-xs text-blue-500">Analizando recibo...</span>
+                        @elseif($receiptScanStatus === 'done')
+                            <span class="text-xs text-green-600 dark:text-green-400">Monto detectado</span>
+                        @elseif($receiptScanStatus === 'error')
+                            <span class="text-xs text-red-500">No se pudo leer el recibo</span>
+                        @endif
+                    </div>
+
+                    {{-- New receipt preview --}}
+                    <template x-if="previewUrl">
+                        <div class="relative">
+                            <img :src="previewUrl" class="h-28 w-full rounded-lg border border-zinc-200 object-cover dark:border-zinc-700">
+                            <button type="button"
+                                    @click="previewUrl = null; $refs.receiptInput.value = ''; $wire.set('receiptImage', null); $wire.set('receiptScanStatus', '')"
+                                    class="absolute right-1 top-1 rounded-full bg-zinc-800/70 p-0.5 text-white transition hover:bg-red-500">
+                                <flux:icon name="x-mark" class="size-3" />
+                            </button>
+                        </div>
+                    </template>
+
+                    {{-- Existing receipt (when editing) --}}
+                    @if($receiptExistingPath && ! $receiptImage)
+                        <div class="relative">
+                            <img src="{{ Storage::url($receiptExistingPath) }}"
+                                 class="h-28 w-full rounded-lg border border-zinc-200 object-cover dark:border-zinc-700">
+                            <span class="absolute left-1 top-1 rounded bg-zinc-800/70 px-1.5 py-0.5 text-[10px] text-white">Recibo guardado</span>
+                        </div>
+                    @endif
+                </div>
 
                 <div class="flex gap-2 pt-1">
                     <flux:button wire:click="saveExpense" variant="primary">

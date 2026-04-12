@@ -34,8 +34,9 @@ Route::get('/', function () {
     $heroPhoto = Photo::hero()->first();
     $aboutPhoto = Photo::about()->first();
     $featuredPhotos = Photo::featured()->limit(6)->get();
+    $featuredProjects = Project::featured()->with('photos')->latest()->limit(6)->get();
 
-    return view('welcome', compact('company', 'heroPhoto', 'aboutPhoto', 'featuredPhotos'));
+    return view('welcome', compact('company', 'heroPhoto', 'aboutPhoto', 'featuredPhotos', 'featuredProjects'));
 })->name('home');
 
 Route::middleware(['restrict.ip'])->group(function () {
@@ -88,8 +89,10 @@ Route::middleware(['auth'])->group(function () {
 
 Route::middleware(['restrict.ip', 'auth', 'permission:manage projects'])->group(function () {
     Volt::route('admin/projects', 'admin.projects.index')->name('admin.projects');
+    Volt::route('admin/projects/kanban', 'admin.projects.kanban')->name('admin.projects.kanban');
     Volt::route('admin/projects/create', 'admin.projects.create')->name('admin.projects.create');
     Volt::route('admin/projects/{project}/edit', 'admin.projects.edit')->name('admin.projects.edit');
+    Volt::route('admin/receipts', 'admin.receipts.index')->name('admin.receipts');
 
     Route::get('admin/projects/{project}/tasks/{task}/report', function (Project $project, ProjectTask $task) {
         $task->load(['assignedUser', 'subtasks.assignedUser']);

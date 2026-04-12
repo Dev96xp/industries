@@ -66,3 +66,41 @@ it('can delete an expense', function () {
 
     expect(ProjectExpense::find($expense->id))->toBeNull();
 });
+
+it('loads existing receipt path when editing an expense', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $admin->givePermissionTo('manage projects');
+
+    $project = Project::factory()->create();
+    $expense = ProjectExpense::factory()->for($project)->create([
+        'receipt_path' => 'receipts/test-receipt.jpg',
+        'expense_date' => '2026-03-01',
+    ]);
+
+    $component = Volt::actingAs($admin)
+        ->test('admin.projects.edit', ['project' => $project])
+        ->call('editExpense', $expense->id);
+
+    $component->assertSet('receiptExistingPath', 'receipts/test-receipt.jpg');
+});
+
+it('preserves existing receipt path when saving expense without a new receipt', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    $admin->givePermissionTo('manage projects');
+
+    $project = Project::factory()->create();
+    $expense = ProjectExpense::factory()->for($project)->create([
+        'receipt_path' => 'receipts/existing.jpg',
+        'expense_date' => '2026-03-01',
+    ]);
+
+    Volt::actingAs($admin)
+        ->test('admin.projects.edit', ['project' => $project])
+        ->call('editExpense', $expense->id)
+        ->set('expenseDescription', 'Updated description')
+        ->call('saveExpense');
+
+    expect($expense->fresh()->receipt_path)->toBe('receipts/existing.jpg');
+});

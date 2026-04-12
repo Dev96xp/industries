@@ -20,6 +20,7 @@ class ProjectExpense extends Model
         'expense_date',
         'notes',
         'payment_method',
+        'receipt_path',
     ];
 
     public function casts(): array

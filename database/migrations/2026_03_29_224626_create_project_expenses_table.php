@@ -17,6 +17,7 @@ return new class extends Migration
             $table->date('expense_date');
             $table->text('notes')->nullable();
             $table->enum('payment_method', ['cash', 'check', 'visa', 'mastercard', 'bank_transfer', 'other'])->default('other');
+            $table->string('receipt_path')->nullable();
             $table->timestamps();
         });
     }
