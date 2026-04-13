@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('number')->nullable()->unique();
             $table->string('name');
             $table->text('description')->nullable();
-            $table->enum('status', ['planning', 'in_progress', 'completed'])->default('planning');
+            $table->enum('status', ['draft', 'planning', 'in_progress', 'on_hold', 'completed', 'cancelled'])->default('draft');
             $table->string('address')->nullable();
             $table->decimal('latitude', 10, 7)->nullable();
             $table->decimal('longitude', 10, 7)->nullable();

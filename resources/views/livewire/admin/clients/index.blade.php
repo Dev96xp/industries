@@ -1,10 +1,42 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Spatie\Permission\Models\Role;
 
 new #[Layout('components.layouts.app')] class extends Component {
+    // New client form
+    public string $newName  = '';
+    public string $newEmail = '';
+    public string $newPhone = '';
+
+    public function createClient(): void
+    {
+        $this->validate([
+            'newName'  => ['required', 'string', 'max:255'],
+            'newEmail' => ['required', 'email', 'unique:users,email'],
+            'newPhone' => ['nullable', 'string', 'max:30'],
+        ]);
+
+        $user = User::create([
+            'name'     => $this->newName,
+            'email'    => $this->newEmail,
+            'phone'    => $this->newPhone ?: null,
+            'password' => bcrypt(Str::random(32)),
+        ]);
+
+        $user->assignRole(Role::firstOrCreate(['name' => 'client']));
+
+        Password::sendResetLink(['email' => $this->newEmail]);
+
+        $this->reset('newName', 'newEmail', 'newPhone');
+        $this->modal('create-client')->close();
+        session()->flash('success', "Client \"{$user->name}\" created and notified by email.");
+    }
+
     public function with(): array
     {
         return [
@@ -25,7 +57,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:heading size="xl">Clients</flux:heading>
             <flux:text class="mt-1 text-zinc-500">All registered clients.</flux:text>
         </div>
-        <flux:badge color="amber" size="lg">{{ $clients->count() }} Clients</flux:badge>
+        <div class="flex items-center gap-3">
+            <flux:badge color="amber" size="lg">{{ $clients->count() }} Clients</flux:badge>
+            <flux:modal.trigger name="create-client">
+                <flux:button variant="primary" icon="user-plus" size="sm">New Client</flux:button>
+            </flux:modal.trigger>
+        </div>
     </div>
 
     {{-- Workflow diagram --}}
@@ -39,7 +76,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <flux:icon.user-plus class="size-5 text-amber-600" />
                 </div>
                 <p class="mt-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200">1. Register Client</p>
-                <p class="mt-0.5 max-w-[110px] text-xs text-zinc-400">Add client from Users module</p>
+                <div class="mt-1.5 flex flex-col gap-1">
+                    <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+                        <flux:icon.globe-alt class="size-3" /> 1a. Self-registers on website
+                    </span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                        <flux:icon.user class="size-3" /> 1b. Admin registers client
+                    </span>
+                </div>
             </div>
 
             {{-- Arrow --}}
@@ -228,5 +272,34 @@ new #[Layout('components.layouts.app')] class extends Component {
             </table>
         </div>
     </div>
+
+    {{-- Flash message --}}
+    @if(session('success'))
+        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
+             class="fixed bottom-6 right-6 z-50 rounded-xl bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    {{-- Create Client Modal --}}
+    <flux:modal name="create-client" class="w-full max-w-md" :dismissible="false">
+        <div class="flex flex-col gap-4 p-1">
+            <flux:heading size="lg">New Client</flux:heading>
+            <flux:text class="text-zinc-500">The client will receive an email to set their password.</flux:text>
+
+            <flux:input wire:model="newName" label="Full Name" placeholder="John Doe" />
+            <flux:input wire:model="newEmail" label="Email" type="email" placeholder="john@example.com" />
+            <flux:input wire:model="newPhone" label="Phone (optional)" placeholder="+1 555 000 0000" />
+
+            <div class="flex gap-2 pt-1">
+                <flux:button wire:click="createClient" variant="primary" icon="user-plus">
+                    Create & Notify
+                </flux:button>
+                <flux:modal.close>
+                    <flux:button variant="ghost">Cancel</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
 
 </div>

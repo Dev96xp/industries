@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
         // Elimina carpetas de archivos subidos para evitar acumular archivos de prueba
         Storage::disk('public')->deleteDirectory('photos');
         Storage::disk('public')->deleteDirectory('project-photos');
+        Storage::disk('public')->deleteDirectory('receipts');
 
         $this->call(RolesAndPermissionsSeeder::class);   // Ejecuta el seeder de roles y permisos antes de crear usuarios
         $this->call(UserSeeder::class);                  // Ejecuta el seeder de usuarios

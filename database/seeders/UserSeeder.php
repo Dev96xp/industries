@@ -15,30 +15,27 @@ class UserSeeder extends Seeder
         // Registro ingresado manualmente
 
         $user = User::create([
-            'name' => 'Claudia Ramirez',
+            'name' => 'Claudia Prueba',
             'email' => 'claudia@gmail.com',
             'password' => bcrypt('12345678'),
             'phone' => '13087464927',
         ]);
-        // Asignacion de administrador
         $user->assignRole('Client');
 
         $user = User::create([
-            'name' => 'Fabiola Hernandez',
+            'name' => 'Fabiola Hernandez Test',
             'email' => 'fabiola@gmail.com',
             'password' => bcrypt('12345678'),
             'phone' => '13087464108',
         ]);
-        // Asignacion de administrador
         $user->assignRole('Client');
 
         $user = User::create([
-            'name' => 'Vanessa Jovanna',
+            'name' => 'Vanessa Jovanna Prueba',
             'email' => 'vanessaj@gmail.com',
             'password' => bcrypt('12345678'),
             'phone' => '13087464108',
         ]);
-        // Asignacion de administrador
         $user->assignRole('Client');
 
         $user = User::create([
@@ -47,8 +44,22 @@ class UserSeeder extends Seeder
             'password' => bcrypt('12345678'),
             'phone' => '13087464108',
         ]);
+        $user->assignRole('Client');
 
-        // Asignacion de administrador
+                $user = User::create([
+            'name' => 'Ivonne Prueba',
+            'email' => 'ivonne@gmail.com',
+            'password' => bcrypt('12345678'),
+            'phone' => '444-564-7788',
+        ]);
+        $user->assignRole('Client');
+
+        $user = User::create([
+            'name' => 'Alejandra Gonzalez',
+            'email' => 'alejandrag@gmail.com',
+            'password' => bcrypt('12345678'),
+            'phone' => '402-454-9999',
+        ]);
         $user->assignRole('Client');
 
         // Crear otros 20 usuarios mas
