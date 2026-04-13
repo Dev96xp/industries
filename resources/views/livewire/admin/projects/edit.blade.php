@@ -41,11 +41,9 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string  $expenseDate          = '';
     public string  $expenseNotes         = '';
     public string  $expensePaymentMethod = 'other';
-    public ?int    $editingExpenseId     = null;
-    public         $receiptImage         = null;
-    public string  $receiptScanStatus    = ''; // '', 'scanning', 'done', 'error'
-    public string  $receiptExistingPath  = '';
-    public string  $receiptTempPath      = ''; // temp file path of compressed image, reused on save
+    public ?int    $editingExpenseId    = null;
+    public         $receiptImage        = null;
+    public string  $receiptExistingPath = '';
 
     // Income form
     public string  $incomeDescription    = '';
@@ -181,96 +179,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         session()->flash('success', 'Annotated photo saved.');
     }
 
-    public function updatedReceiptImage(): void
-    {
-        if (! $this->receiptImage) {
-            return;
-        }
-
-        $this->scanReceipt();
-    }
-
-    public function scanReceipt(): void
-    {
-        if (! $this->receiptImage) {
-            return;
-        }
-
-        $this->receiptScanStatus = 'scanning';
-
-        try {
-            $client = new \Anthropic\Client(apiKey: config('services.anthropic.api_key'));
-
-            // Resize to max 1000px before sending to API — save to temp file to reuse on save
-            $manager      = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
-            $imageContent = (string) $manager->read($this->receiptImage->getRealPath())
-                ->scaleDown(width: 1000, height: 1800)
-                ->toJpeg(quality: 85);
-            $tempPath            = tempnam(sys_get_temp_dir(), 'receipt_') . '.jpg';
-            file_put_contents($tempPath, $imageContent);
-            $this->receiptTempPath = $tempPath;
-            $base64                = base64_encode($imageContent);
-            $mimeType              = 'image/jpeg';
-
-            $response = $client->messages->create(
-                maxTokens: 256,
-                model: config('services.anthropic.model'),
-                messages: [
-                    [
-                        'role'    => 'user',
-                        'content' => [
-                            \Anthropic\Messages\ImageBlockParam::with(
-                                source: \Anthropic\Messages\Base64ImageSource::with(
-                                    data: $base64,
-                                    mediaType: $mimeType,
-                                )
-                            ),
-                            ['type' => 'text', 'text' => 'Analyze this receipt and extract the following. Reply with ONLY valid JSON, no extra text: {"amount": "total numeric amount, no currency symbol, e.g. 45.99", "date": "date in YYYY-MM-DD format or empty string if not found", "description": "store or company name, or empty string if not found", "payment_method": "one of: cash, check, visa, mastercard, bank_transfer, other — based on what the receipt shows, default to other if not clear"}'],
-                        ],
-                    ],
-                ],
-            );
-
-            $text = trim($response->content[0]->text ?? '');
-
-            // Extract JSON object from anywhere in the response
-            if (preg_match('/\{.*\}/s', $text, $matches)) {
-                $text = $matches[0];
-            }
-
-            $data = json_decode($text, true);
-
-            if (is_array($data)) {
-                $amount = preg_replace('/[^0-9.]/', '', $data['amount'] ?? '');
-                if ($amount) {
-                    $this->expenseAmount = $amount;
-                }
-
-                if (! empty($data['date']) && strtotime($data['date'])) {
-                    $this->expenseDate = date('Y-m-d', strtotime($data['date']));
-                }
-
-                if (! empty($data['description']) && empty($this->expenseDescription)) {
-                    $this->expenseDescription = $data['description'];
-                }
-
-                $validMethods = ['cash', 'check', 'visa', 'mastercard', 'bank_transfer', 'other'];
-                if (! empty($data['payment_method']) && in_array($data['payment_method'], $validMethods)) {
-                    $this->expensePaymentMethod = $data['payment_method'];
-                }
-            } else {
-                // Fallback: try to extract just the amount with regex
-                if (preg_match('/\$?\s*(\d+[\.,]\d{2})/', $text, $m)) {
-                    $this->expenseAmount = str_replace(',', '.', $m[1]);
-                }
-            }
-
-            $this->receiptScanStatus = 'done';
-        } catch (\Throwable) {
-            $this->receiptScanStatus = 'error';
-        }
-    }
-
     public function saveExpense(): void
     {
         $validated = $this->validate([
@@ -292,7 +200,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         ];
 
         if ($this->receiptImage) {
-            $data['receipt_path'] = $this->storeCompressedReceipt();
+            $data['receipt_path'] = $this->storeReceipt();
         } elseif ($this->receiptExistingPath) {
             $data['receipt_path'] = $this->receiptExistingPath;
         }
@@ -338,27 +246,6 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->modal('expense-form')->close();
     }
 
-    private function storeCompressedReceipt(): string
-    {
-        $filename = 'receipts/' . \Illuminate\Support\Str::uuid() . '.jpg';
-
-        if ($this->receiptTempPath && file_exists($this->receiptTempPath)) {
-            // Reuse already-compressed temp file from scan — no need to process again
-            Storage::disk('public')->put($filename, file_get_contents($this->receiptTempPath));
-            @unlink($this->receiptTempPath);
-        } else {
-            $manager = new \Intervention\Image\ImageManager(
-                new \Intervention\Image\Drivers\Gd\Driver()
-            );
-            $image = $manager->read($this->receiptImage->getRealPath())
-                ->scaleDown(width: 1500, height: 2000)
-                ->toJpeg(quality: 80);
-            Storage::disk('public')->put($filename, $image);
-        }
-
-        return $filename;
-    }
-
     private function resetExpenseForm(): void
     {
         $this->expenseDescription   = '';
@@ -368,14 +255,26 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->expenseNotes         = '';
         $this->expensePaymentMethod = 'other';
         $this->editingExpenseId     = null;
-        $this->receiptImage      = null;
-        $this->receiptScanStatus = '';
-        $this->receiptExistingPath = '';
-        if ($this->receiptTempPath && file_exists($this->receiptTempPath)) {
-            @unlink($this->receiptTempPath);
-        }
-        $this->receiptTempPath = '';
+        $this->receiptImage         = null;
+        $this->receiptExistingPath  = '';
         $this->dispatch('receipt-reset');
+    }
+
+    private function storeReceipt(): string
+    {
+        $filename = 'receipts/' . \Illuminate\Support\Str::uuid() . '.jpg';
+
+        $manager = new \Intervention\Image\ImageManager(
+            new \Intervention\Image\Drivers\Gd\Driver()
+        );
+
+        $image = $manager->read($this->receiptImage->getRealPath())
+            ->scaleDown(width: 1500, height: 2000)
+            ->toJpeg(quality: 80);
+
+        Storage::disk('public')->put($filename, $image);
+
+        return $filename;
     }
 
     public function saveIncome(): void
@@ -1271,63 +1170,25 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </div>
                 <flux:input wire:model="expenseNotes" label="Notes (optional)" placeholder="Additional details..." />
 
-                {{-- Receipt Capture --}}
-                <div x-data="{
-                        previewUrl: null,
-                        uploading: false,
-                        compressAndUpload(file) {
-                            if (!file) return;
-                            this.uploading = true;
-                            this.previewUrl = URL.createObjectURL(file);
-                            const img = new Image();
-                            img.onload = () => {
-                                const maxW = 800, maxH = 1600;
-                                let w = img.width, h = img.height;
-                                if (w > maxW || h > maxH) {
-                                    const ratio = Math.min(maxW / w, maxH / h);
-                                    w = Math.round(w * ratio);
-                                    h = Math.round(h * ratio);
-                                }
-                                const canvas = document.createElement('canvas');
-                                canvas.width = w; canvas.height = h;
-                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                                canvas.toBlob((blob) => {
-                                    const compressed = new File([blob], 'receipt.jpg', { type: 'image/jpeg' });
-                                    $wire.upload('receiptImage', compressed,
-                                        () => { this.uploading = false; },
-                                        () => { this.uploading = false; },
-                                        () => {}
-                                    );
-                                }, 'image/jpeg', 0.82);
-                            };
-                            img.src = this.previewUrl;
-                        }
-                     }"
-                     @receipt-reset.window="previewUrl = null; uploading = false; $refs.receiptInput && ($refs.receiptInput.value = '')"
+                {{-- Receipt Photo --}}
+                <div x-data="{ previewUrl: null }"
+                     @receipt-reset.window="previewUrl = null; $refs.receiptInput && ($refs.receiptInput.value = '')"
                      class="flex flex-col gap-2">
                     <div class="flex items-center gap-3">
                         <label class="cursor-pointer">
                             <input type="file"
+                                   wire:model="receiptImage"
                                    accept="image/*"
                                    capture="environment"
                                    class="hidden"
                                    x-ref="receiptInput"
-                                   @change="compressAndUpload($event.target.files[0])">
+                                   @change="previewUrl = $event.target.files[0] ? URL.createObjectURL($event.target.files[0]) : null">
                             <flux:button type="button" icon="camera" variant="ghost" size="sm"
                                          @click.prevent="$refs.receiptInput.click()">
                                 Capturar Recibo
                             </flux:button>
                         </label>
-
-                        <span x-show="uploading" class="text-xs text-zinc-400">Subiendo...</span>
-
-                        @if($receiptScanStatus === 'scanning')
-                            <span class="text-xs text-blue-500">Analizando recibo...</span>
-                        @elseif($receiptScanStatus === 'done')
-                            <span class="text-xs text-green-600 dark:text-green-400">Monto detectado</span>
-                        @elseif($receiptScanStatus === 'error')
-                            <span class="text-xs text-red-500">No se pudo leer el recibo</span>
-                        @endif
+                        <div wire:loading wire:target="receiptImage" class="text-xs text-zinc-400">Subiendo...</div>
                     </div>
 
                     {{-- New receipt preview --}}
@@ -1335,7 +1196,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <div class="relative">
                             <img :src="previewUrl" class="h-28 w-full rounded-lg border border-zinc-200 object-cover dark:border-zinc-700">
                             <button type="button"
-                                    @click="previewUrl = null; uploading = false; $refs.receiptInput.value = ''; $wire.set('receiptImage', null); $wire.set('receiptScanStatus', '')"
+                                    @click="previewUrl = null; $refs.receiptInput.value = ''; $wire.set('receiptImage', null)"
                                     class="absolute right-1 top-1 rounded-full bg-zinc-800/70 p-0.5 text-white transition hover:bg-red-500">
                                 <flux:icon name="x-mark" class="size-3" />
                             </button>
