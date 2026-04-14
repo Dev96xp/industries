@@ -317,9 +317,19 @@ new #[Layout('components.layouts.app')] class extends Component {
             ]);
 
             $text = $response->content[0]->text ?? '';
-            // Extract JSON from response
-            preg_match('/\{.*\}/s', $text, $matches);
-            $data = $matches[0] ? json_decode($matches[0], true) : [];
+
+            // Strip markdown code blocks if present
+            $text = preg_replace('/```(?:json)?\s*/i', '', $text);
+            $text = preg_replace('/```/', '', $text);
+
+            // Extract JSON object
+            preg_match('/\{[^{}]*\}/s', $text, $matches);
+            $data = ! empty($matches[0]) ? json_decode($matches[0], true) : [];
+
+            if (empty($data)) {
+                // Fallback: try decoding the whole trimmed response
+                $data = json_decode(trim($text), true) ?? [];
+            }
 
             if (! empty($data['amount'])) {
                 $this->expenseAmount = (string) $data['amount'];
@@ -339,7 +349,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             session()->flash('scan_success', 'Receipt scanned successfully.');
         } catch (\Throwable $e) {
-            session()->flash('scan_error', 'Could not read receipt. Please fill in manually.');
+            session()->flash('scan_error', 'Error: ' . $e->getMessage());
         } finally {
             $this->isScanning = false;
         }
