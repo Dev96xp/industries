@@ -292,7 +292,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             $client = new \Anthropic\Client(config('services.anthropic.api_key'));
 
-            $response = $client->messages()->create([
+            $response = $client->messages->create([
                 'model'      => config('services.anthropic.model'),
                 'max_tokens' => 512,
                 'messages'   => [
