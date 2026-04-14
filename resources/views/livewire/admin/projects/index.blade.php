@@ -98,7 +98,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <div class="flex flex-1 flex-col gap-3 p-5">
                         {{-- Status badge --}}
                         <div class="flex items-center justify-between">
-                            <flux:badge color="{{ match($project->status) { 'planning' => 'amber', 'in_progress' => 'blue', 'completed' => 'green' } }}" size="sm">
+                            <flux:badge color="{{ match($project->status) { 'draft' => 'zinc', 'planning' => 'amber', 'in_progress' => 'blue', 'on_hold' => 'orange', 'completed' => 'green', 'cancelled' => 'red', default => 'zinc' } }}" size="sm">
                                 {{ ucfirst(str_replace('_', ' ', $project->status)) }}
                             </flux:badge>
                             <div class="flex items-center gap-1.5">

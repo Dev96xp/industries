@@ -44,6 +44,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public ?int    $editingExpenseId    = null;
     public         $receiptImage        = null;
     public string  $receiptExistingPath = '';
+    public bool    $isScanning          = false;
 
     // Income form
     public string  $incomeDescription    = '';
@@ -275,6 +276,73 @@ new #[Layout('components.layouts.app')] class extends Component {
         Storage::disk('public')->put($filename, $image);
 
         return $filename;
+    }
+
+    public function scanReceipt(): void
+    {
+        if (! $this->receiptImage) {
+            return;
+        }
+
+        $this->isScanning = true;
+
+        try {
+            $imageData = base64_encode(file_get_contents($this->receiptImage->getRealPath()));
+            $mimeType  = $this->receiptImage->getMimeType();
+
+            $client = new \Anthropic\Client(config('services.anthropic.api_key'));
+
+            $response = $client->messages()->create([
+                'model'      => config('services.anthropic.model'),
+                'max_tokens' => 512,
+                'messages'   => [
+                    [
+                        'role'    => 'user',
+                        'content' => [
+                            [
+                                'type'   => 'image',
+                                'source' => [
+                                    'type'       => 'base64',
+                                    'media_type' => $mimeType,
+                                    'data'       => $imageData,
+                                ],
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => 'Extract data from this receipt. Reply ONLY with a JSON object with these keys: "amount" (numeric, no currency symbol), "date" (YYYY-MM-DD format), "description" (store/company name and what was purchased, max 120 chars), "payment_method" (one of: cash, check, visa, mastercard, bank_transfer, other). If a value cannot be determined, use null.',
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+
+            $text = $response->content[0]->text ?? '';
+            // Extract JSON from response
+            preg_match('/\{.*\}/s', $text, $matches);
+            $data = $matches[0] ? json_decode($matches[0], true) : [];
+
+            if (! empty($data['amount'])) {
+                $this->expenseAmount = (string) $data['amount'];
+            }
+            if (! empty($data['date'])) {
+                $this->expenseDate = $data['date'];
+            }
+            if (! empty($data['description'])) {
+                $this->expenseDescription = $data['description'];
+            }
+            if (! empty($data['payment_method'])) {
+                $validMethods = ['cash', 'check', 'visa', 'mastercard', 'bank_transfer', 'other'];
+                if (in_array($data['payment_method'], $validMethods)) {
+                    $this->expensePaymentMethod = $data['payment_method'];
+                }
+            }
+
+            session()->flash('scan_success', 'Receipt scanned successfully.');
+        } catch (\Throwable $e) {
+            session()->flash('scan_error', 'Could not read receipt. Please fill in manually.');
+        } finally {
+            $this->isScanning = false;
+        }
     }
 
     public function saveIncome(): void
@@ -1174,7 +1242,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <div x-data="{ previewUrl: null }"
                      @receipt-reset.window="previewUrl = null; $refs.receiptInput && ($refs.receiptInput.value = '')"
                      class="flex flex-col gap-2">
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-3 flex-wrap">
                         <label class="cursor-pointer">
                             <input type="file"
                                    wire:model="receiptImage"
@@ -1189,7 +1257,26 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </flux:button>
                         </label>
                         <div wire:loading wire:target="receiptImage" class="text-xs text-zinc-400">Subiendo...</div>
+
+                        {{-- Scan button: appears once image is uploaded --}}
+                        @if($receiptImage)
+                            <flux:button type="button" icon="sparkles" variant="primary" size="sm"
+                                         wire:click="scanReceipt"
+                                         wire:loading.attr="disabled"
+                                         wire:target="scanReceipt">
+                                <span wire:loading.remove wire:target="scanReceipt">Scan Recibo</span>
+                                <span wire:loading wire:target="scanReceipt">Escaneando...</span>
+                            </flux:button>
+                        @endif
                     </div>
+
+                    {{-- Scan feedback --}}
+                    @if(session('scan_success'))
+                        <p class="text-xs font-medium text-green-600">{{ session('scan_success') }}</p>
+                    @endif
+                    @if(session('scan_error'))
+                        <p class="text-xs font-medium text-red-500">{{ session('scan_error') }}</p>
+                    @endif
 
                     {{-- New receipt preview --}}
                     <template x-if="previewUrl">
