@@ -93,6 +93,8 @@ Route::middleware(['restrict.ip', 'auth', 'permission:manage projects'])->group(
     Volt::route('admin/projects/create', 'admin.projects.create')->name('admin.projects.create');
     Volt::route('admin/projects/{project}/edit', 'admin.projects.edit')->name('admin.projects.edit');
     Volt::route('admin/receipts', 'admin.receipts.index')->name('admin.receipts');
+    Volt::route('admin/products', 'admin.products.index')->name('admin.products');
+    Volt::route('admin/categories', 'admin.categories.index')->name('admin.categories');
 
     Route::get('admin/projects/{project}/tasks/{task}/report', function (Project $project, ProjectTask $task) {
         $task->load(['assignedUser', 'subtasks.assignedUser']);

@@ -349,7 +349,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             session()->flash('scan_success', 'Receipt scanned successfully.');
         } catch (\Throwable $e) {
-            session()->flash('scan_error', 'Error: ' . $e->getMessage());
+            session()->flash('scan_error', 'Could not read receipt. Please fill in manually.');
         } finally {
             $this->isScanning = false;
         }

@@ -14,9 +14,11 @@ class QuoteItem extends Model
 
     protected $fillable = [
         'quote_id',
+        'product_id',
         'description',
         'quantity',
         'unit_price',
+        'discount',
         'unit',
         'sort_order',
     ];
@@ -26,6 +28,7 @@ class QuoteItem extends Model
         return [
             'quantity' => 'decimal:2',
             'unit_price' => 'decimal:2',
+            'discount' => 'decimal:2',
         ];
     }
 
@@ -34,8 +37,15 @@ class QuoteItem extends Model
         return $this->belongsTo(Quote::class);
     }
 
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+
     public function getLineTotalAttribute(): float
     {
-        return round((float) $this->quantity * (float) $this->unit_price, 2);
+        $subtotal = (float) $this->quantity * (float) $this->unit_price;
+
+        return round($subtotal * (1 - (float) $this->discount / 100), 2);
     }
 }

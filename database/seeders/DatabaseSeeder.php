@@ -21,6 +21,9 @@ class DatabaseSeeder extends Seeder
 
         $this->call(RolesAndPermissionsSeeder::class);   // Ejecuta el seeder de roles y permisos antes de crear usuarios
         $this->call(UserSeeder::class);                  // Ejecuta el seeder de usuarios
+        $this->call(CategorySeeder::class);              // Categorías de productos
+        $this->call(ProductSeeder::class);               // Productos del catálogo
+        $this->call(QuoteSeeder::class);                 // Cotizaciones de ejemplo
 
         $superAdmin = User::firstOrCreate(
             ['email' => 'admin@industries.com'],

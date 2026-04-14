@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Product;
 use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
@@ -17,7 +18,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $terms           = '';
     public string $status          = 'draft';
 
-    /** @var array<int, array{id: int|null, description: string, quantity: string, unit_price: string, unit: string}> */
+    /** @var array<int, array{id: int|null, product_id: int|null, description: string, quantity: string, unit_price: string, unit: string}> */
     public array $items = [];
 
     public function mount(Quote $quote): void
@@ -33,16 +34,38 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $this->items = $quote->items->map(fn ($item) => [
             'id'          => $item->id,
+            'product_id'  => $item->product_id,
             'description' => $item->description,
             'quantity'    => (string) $item->quantity,
             'unit_price'  => (string) $item->unit_price,
+            'discount'    => (string) ($item->discount ?? '0'),
             'unit'        => $item->unit ?? '',
         ])->toArray();
     }
 
     public function addItem(): void
     {
-        $this->items[] = ['id' => null, 'description' => '', 'quantity' => '1', 'unit_price' => '', 'unit' => ''];
+        $this->items[] = ['id' => null, 'product_id' => null, 'description' => '', 'quantity' => '1', 'unit_price' => '', 'discount' => '0', 'unit' => ''];
+    }
+
+    public function selectProduct(int $index, ?int $productId): void
+    {
+        if (! $productId) {
+            $this->items[$index]['product_id'] = null;
+
+            return;
+        }
+
+        $product = Product::find($productId);
+
+        if (! $product) {
+            return;
+        }
+
+        $this->items[$index]['product_id'] = $product->id;
+        $this->items[$index]['description'] = $product->name;
+        $this->items[$index]['unit_price']  = $product->unit_price ? (string) $product->unit_price : '';
+        $this->items[$index]['unit']        = $product->unit ?? '';
     }
 
     public function removeItem(int $index): void
@@ -55,13 +78,17 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function with(): array
     {
-        $subtotal  = collect($this->items)->sum(
-            fn ($item) => (float) ($item['quantity'] ?? 0) * (float) ($item['unit_price'] ?? 0)
-        );
+        $subtotal  = collect($this->items)->sum(function ($item) {
+            $lineTotal = (float) ($item['quantity'] ?? 0) * (float) ($item['unit_price'] ?? 0);
+
+            return $lineTotal * (1 - (float) ($item['discount'] ?? 0) / 100);
+        });
         $taxAmount = round($subtotal * ((float) $this->tax_percentage / 100), 2);
         $total     = round($subtotal + $taxAmount - (float) $this->discount, 2);
 
-        return compact('subtotal', 'taxAmount', 'total');
+        $products = Product::with('category')->where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit_price', 'unit', 'category_id']);
+
+        return compact('subtotal', 'taxAmount', 'total', 'products');
     }
 
     public function save(): void
@@ -72,10 +99,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             'tax_percentage'  => ['numeric', 'min:0', 'max:100'],
             'discount'        => ['numeric', 'min:0'],
             'status'          => ['required', 'in:draft,sent,accepted,rejected'],
-            'items'           => ['required', 'array', 'min:1'],
+            'items'                => ['required', 'array', 'min:1'],
+            'items.*.product_id'  => ['required', 'exists:products,id'],
             'items.*.description' => ['required', 'string', 'max:255'],
             'items.*.quantity'    => ['required', 'numeric', 'min:0.01'],
             'items.*.unit_price'  => ['required', 'numeric', 'min:0'],
+            'items.*.discount'    => ['numeric', 'min:0', 'max:100'],
         ]);
 
         $this->quote->update([
@@ -93,9 +122,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                 ['id' => $item['id'] ?? null],
                 [
                     'quote_id'    => $this->quote->id,
+                    'product_id'  => $item['product_id'] ?? null,
                     'description' => $item['description'],
                     'quantity'    => $item['quantity'],
                     'unit_price'  => $item['unit_price'],
+                    'discount'    => $item['discount'] ?? 0,
                     'unit'        => $item['unit'] ?? null,
                     'sort_order'  => $i,
                 ]
@@ -174,7 +205,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:callout variant="danger" icon="exclamation-circle">{{ session('error') }}</flux:callout>
     @endif
 
-    <form wire:submit="save" class="flex flex-col gap-6 max-w-4xl">
+    <form wire:submit="save" class="flex flex-col gap-6 max-w-6xl">
 
         {{-- Client card (read-only) --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
@@ -225,47 +256,125 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <div class="col-span-5">Description</div>
                 <div class="col-span-2 text-right">Qty</div>
                 <div class="col-span-2 text-right">Unit Price</div>
-                <div class="col-span-1 text-right">Unit</div>
-                <div class="col-span-2 text-right">Total</div>
+                <div class="col-span-1 text-right">Disc %</div>
+                <div class="col-span-1 text-right">Total</div>
             </div>
 
             <div class="flex flex-col gap-2">
                 @foreach($items as $i => $item)
+                    @php $selectedProduct = $products->firstWhere('id', $item['product_id'] ?? null); @endphp
                     <div
-                        class="grid min-w-[600px] grid-cols-12 items-center gap-2"
-                        x-data="{ qty: {{ (float)($item['quantity'] ?? 0) }}, price: {{ (float)($item['unit_price'] ?? 0) }} }"
+                        class="grid min-w-[600px] grid-cols-12 items-start gap-2"
+                        x-data="{
+                            qty: {{ (float)($item['quantity'] ?? 0) }},
+                            price: {{ (float)($item['unit_price'] ?? 0) }},
+                            disc: {{ (float)($item['discount'] ?? 0) }},
+                            open: false,
+                            query: '{{ addslashes($selectedProduct?->name ?? '') }}',
+                            activeIndex: -1,
+                            dropdownStyle: {},
+                            updatePosition() {
+                                const rect = this.$refs.comboInput.getBoundingClientRect();
+                                this.dropdownStyle = {
+                                    position: 'fixed',
+                                    top: (rect.bottom + window.scrollY) + 'px',
+                                    left: (rect.left + window.scrollX) + 'px',
+                                    width: rect.width + 'px',
+                                    zIndex: 9999,
+                                };
+                            },
+                            products: {{ Js::from($products->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'category' => $p->category?->name ?? 'Other', 'unit_price' => $p->unit_price, 'unit' => $p->unit])) }},
+                            get filtered() {
+                                if (!this.query) return this.products;
+                                return this.products.filter(p => p.name.toLowerCase().includes(this.query.toLowerCase()) || p.category.toLowerCase().includes(this.query.toLowerCase()));
+                            },
+                            select(product) {
+                                this.query = product.name;
+                                this.open = false;
+                                this.activeIndex = -1;
+                                $wire.selectProduct({{ $i }}, product.id).then(() => {
+                                    this.price = parseFloat($wire.items[{{ $i }}].unit_price) || 0;
+                                    this.qty = parseFloat($wire.items[{{ $i }}].quantity) || 0;
+                                });
+                            },
+                            onKeydown(e) {
+                                if (!this.open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                                    this.open = true; return;
+                                }
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault();
+                                    this.activeIndex = Math.min(this.activeIndex + 1, this.filtered.length - 1);
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault();
+                                    this.activeIndex = Math.max(this.activeIndex - 1, 0);
+                                } else if (e.key === 'Enter' && this.activeIndex >= 0) {
+                                    e.preventDefault();
+                                    this.select(this.filtered[this.activeIndex]);
+                                } else if (e.key === 'Escape') {
+                                    this.open = false; this.activeIndex = -1;
+                                }
+                            }
+                        }"
+                        x-on:click.outside="open = false"
                     >
-                        <div class="col-span-5">
-                            <flux:input wire:model="items.{{ $i }}.description" placeholder="Description" />
+                        <div class="col-span-5 flex flex-col gap-1">
+                            <div class="relative">
+                                <input
+                                    type="text"
+                                    x-ref="comboInput"
+                                    x-model="query"
+                                    x-on:focus="open = true; activeIndex = -1; updatePosition(); $el.scrollIntoView({ behavior: 'smooth', block: 'center' })"
+                                    x-on:input="open = true; activeIndex = -1; updatePosition()"
+                                    x-on:keydown="onKeydown($event)"
+                                    placeholder="Search product..."
+                                    autocomplete="off"
+                                    class="w-full rounded border border-zinc-200 px-3 py-1.5 text-sm text-zinc-900 placeholder-zinc-400 focus:border-blue-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                                />
+                                <template x-teleport="body">
+                                    <div
+                                        x-show="open && filtered.length > 0"
+                                        x-transition
+                                        :style="dropdownStyle"
+                                        class="mt-1 max-h-80 overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                                    >
+                                        <template x-for="(product, idx) in filtered" :key="product.id">
+                                            <button
+                                                type="button"
+                                                x-on:click="select(product)"
+                                                x-on:mouseenter="activeIndex = idx"
+                                                :class="activeIndex === idx ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'"
+                                                class="flex w-full items-center justify-between px-3 py-2 text-left text-sm"
+                                            >
+                                                <span class="font-medium text-zinc-900 dark:text-zinc-100" x-text="product.name"></span>
+                                                <span class="ml-2 text-xs text-zinc-400">
+                                                    <span x-text="product.category"></span>
+                                                    <template x-if="product.unit_price">
+                                                        <span x-text="' — $' + parseFloat(product.unit_price).toFixed(2)"></span>
+                                                    </template>
+                                                </span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                    <div x-show="open && query && filtered.length === 0" :style="dropdownStyle" class="mt-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-400 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                                        No products found.
+                                    </div>
+                                </template>
+                            </div>
+                            @error('items.' . $i . '.product_id')
+                                <p class="text-xs text-red-500">{{ $message }}</p>
+                            @enderror
                         </div>
                         <div class="col-span-2">
                             <flux:input wire:model="items.{{ $i }}.quantity" type="number" step="0.01" min="0" x-on:input="qty = parseFloat($event.target.value) || 0" />
                         </div>
                         <div class="col-span-2">
-                            <flux:input wire:model="items.{{ $i }}.unit_price" type="number" step="0.01" min="0" x-on:input="price = parseFloat($event.target.value) || 0" />
+                            <flux:input wire:model="items.{{ $i }}.unit_price" type="number" step="0.01" min="0" readonly class="bg-zinc-50 dark:bg-zinc-800/50 cursor-not-allowed" />
                         </div>
                         <div class="col-span-1">
-                            <flux:select wire:model="items.{{ $i }}.unit" placeholder="—">
-                                <flux:select.option value="">—</flux:select.option>
-                                <flux:select.option value="each">each</flux:select.option>
-                                <flux:select.option value="hr">hr</flux:select.option>
-                                <flux:select.option value="day">day</flux:select.option>
-                                <flux:select.option value="sqft">sq ft</flux:select.option>
-                                <flux:select.option value="sqyd">sq yd</flux:select.option>
-                                <flux:select.option value="sqm">sq m</flux:select.option>
-                                <flux:select.option value="linft">lin ft</flux:select.option>
-                                <flux:select.option value="linm">lin m</flux:select.option>
-                                <flux:select.option value="ft">ft</flux:select.option>
-                                <flux:select.option value="in">in</flux:select.option>
-                                <flux:select.option value="cm">cm</flux:select.option>
-                                <flux:select.option value="yd">yd</flux:select.option>
-                                <flux:select.option value="lb">lb</flux:select.option>
-                                <flux:select.option value="kg">kg</flux:select.option>
-                                <flux:select.option value="ton">ton</flux:select.option>
-                            </flux:select>
+                            <flux:input wire:model.live="items.{{ $i }}.discount" type="number" step="0.1" min="0" max="100" placeholder="0" x-on:input="disc = parseFloat($event.target.value) || 0" />
                         </div>
                         <div class="col-span-1 text-right text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                            $<span x-text="(qty * price).toFixed(2)"></span>
+                            $<span x-text="(qty * price * (1 - disc / 100)).toFixed(2)"></span>
                         </div>
                         <div class="col-span-1 text-right">
                             @if(count($items) > 1)
