@@ -14,6 +14,7 @@ return new class extends Migration
             $table->decimal('amount', 10, 2);
             $table->date('paid_at');
             $table->enum('method', ['cash', 'check', 'transfer', 'card'])->default('cash');
+            $table->enum('status', ['pending', 'completed'])->default('completed');
             $table->text('notes')->nullable();
             $table->string('stripe_payment_link')->nullable();
             $table->string('stripe_session_id')->nullable();

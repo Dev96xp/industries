@@ -16,6 +16,8 @@ return new class extends Migration
             $table->string('city')->nullable();
             $table->string('state')->nullable();
             $table->string('zip')->nullable();
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
             $table->string('phone')->nullable();
             $table->string('phone_secondary')->nullable();
             $table->string('email')->nullable();
