@@ -46,6 +46,16 @@ class Quote extends Model
         return $this->hasMany(QuoteItem::class)->orderBy('sort_order');
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(QuotePayment::class)->orderBy('paid_at');
+    }
+
+    public function completedPayments(): HasMany
+    {
+        return $this->hasMany(QuotePayment::class)->where('status', 'completed')->orderBy('paid_at');
+    }
+
     public function client(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -69,6 +79,16 @@ class Quote extends Model
     public function getTotalAttribute(): float
     {
         return round($this->subtotal + $this->tax_amount - (float) $this->discount, 2);
+    }
+
+    public function getAmountPaidAttribute(): float
+    {
+        return (float) $this->payments->where('status', 'completed')->sum('amount');
+    }
+
+    public function getBalanceDueAttribute(): float
+    {
+        return round($this->total - $this->amount_paid, 2);
     }
 
     public static function generateNumber(): string

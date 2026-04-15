@@ -24,7 +24,17 @@ class CompanySetting extends Model
         'livewire_max_payload_mb',
         'ip_restriction_enabled',
         'allowed_ips',
+        'latitude',
+        'longitude',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
+        ];
+    }
 
     public static function current(): self
     {

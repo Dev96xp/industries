@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\StripeWebhookController;
 use App\Models\CompanySetting;
 use App\Models\Photo;
 use App\Models\Project;
@@ -10,6 +11,10 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
+
+// Stripe webhook — no CSRF, no auth
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])
+    ->name('stripe.webhook');
 
 Route::get('/quotes/{quote}/approve', function (Quote $quote) {
     if (! request()->hasValidSignature()) {
@@ -63,6 +68,7 @@ Route::middleware(['restrict.ip'])->group(function () {
     Route::middleware(['auth', 'permission:manage users'])->group(function () {
         Volt::route('admin/users', 'admin.users')->name('admin.users');
         Volt::route('admin/clients', 'admin.clients.index')->name('admin.clients');
+        Volt::route('admin/clients/map', 'admin.clients-map')->name('admin.clients.map');
     });
 
     Route::middleware(['auth', 'role:superadmin'])->group(function () {

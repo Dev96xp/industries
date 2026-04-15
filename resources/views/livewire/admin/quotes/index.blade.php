@@ -48,8 +48,8 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         return [
             'quotes' => $this->activeTab === 'archived'
-                ? Quote::onlyTrashed()->with('project')->orderByDesc('deleted_at')->get()
-                : Quote::with('project')->orderByDesc('created_at')->get(),
+                ? Quote::onlyTrashed()->with(['project', 'payments', 'items'])->orderByDesc('deleted_at')->get()
+                : Quote::with(['project', 'payments', 'items'])->orderByDesc('created_at')->get(),
         ];
     }
 }; ?>
@@ -106,6 +106,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Status</th>
                         <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Project</th>
                         <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">Total</th>
+                        <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">Balance</th>
+                        <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">Paid</th>
                         <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">Actions</th>
                     </tr>
                 </thead>
@@ -130,6 +132,30 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </td>
                             <td class="px-6 py-4 text-right font-semibold text-zinc-800 dark:text-zinc-100">
                                 ${{ number_format($quote->total, 2) }}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                @php
+                                    $amountPaid = (float) $quote->payments->where('status', 'completed')->sum('amount');
+                                    $balance = round($quote->total - $amountPaid, 2);
+                                @endphp
+                                @if($balance <= 0)
+                                    <span class="inline-flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
+                                        <flux:icon.check-circle class="size-3.5" /> Paid
+                                    </span>
+                                @else
+                                    <span class="font-semibold text-red-600 dark:text-red-400">
+                                        ${{ number_format($balance, 2) }}
+                                    </span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                @if($amountPaid > 0)
+                                    <span class="font-semibold text-green-600 dark:text-green-400">
+                                        ${{ number_format($amountPaid, 2) }}
+                                    </span>
+                                @else
+                                    <span class="text-zinc-300 dark:text-zinc-600">—</span>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">

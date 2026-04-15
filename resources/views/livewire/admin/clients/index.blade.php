@@ -9,32 +9,139 @@ use Spatie\Permission\Models\Role;
 
 new #[Layout('components.layouts.app')] class extends Component {
     // New client form
-    public string $newName  = '';
-    public string $newEmail = '';
-    public string $newPhone = '';
+    public string $newName    = '';
+    public string $newEmail   = '';
+    public string $newPhone   = '';
+    public string $newAddress = '';
+    public string $newCity    = '';
+    public string $newState   = '';
+    public string $newZip     = '';
+
+    // Edit client form
+    public ?int $editId      = null;
+    public string $editName    = '';
+    public string $editEmail   = '';
+    public string $editPhone   = '';
+    public string $editAddress = '';
+    public string $editCity    = '';
+    public string $editState   = '';
+    public string $editZip     = '';
 
     public function createClient(): void
     {
         $this->validate([
-            'newName'  => ['required', 'string', 'max:255'],
-            'newEmail' => ['required', 'email', 'unique:users,email'],
-            'newPhone' => ['nullable', 'string', 'max:30'],
+            'newName'    => ['required', 'string', 'max:255'],
+            'newEmail'   => ['required', 'email', 'unique:users,email'],
+            'newPhone'   => ['nullable', 'string', 'max:30'],
+            'newAddress' => ['nullable', 'string', 'max:255'],
+            'newCity'    => ['nullable', 'string', 'max:100'],
+            'newState'   => ['nullable', 'string', 'max:100'],
+            'newZip'     => ['nullable', 'string', 'max:20'],
         ]);
 
         $user = User::create([
             'name'     => $this->newName,
             'email'    => $this->newEmail,
             'phone'    => $this->newPhone ?: null,
+            'address'  => $this->newAddress ?: null,
+            'city'     => $this->newCity ?: null,
+            'state'    => $this->newState ?: null,
+            'zip'      => $this->newZip ?: null,
             'password' => bcrypt(Str::random(32)),
         ]);
 
         $user->assignRole(Role::firstOrCreate(['name' => 'client']));
 
+        $this->geocodeUser($user);
+
         Password::sendResetLink(['email' => $this->newEmail]);
 
-        $this->reset('newName', 'newEmail', 'newPhone');
+        $this->reset('newName', 'newEmail', 'newPhone', 'newAddress', 'newCity', 'newState', 'newZip');
         $this->modal('create-client')->close();
         session()->flash('success', "Client \"{$user->name}\" created and notified by email.");
+    }
+
+    public function openEdit(int $id): void
+    {
+        $user = User::findOrFail($id);
+
+        $this->editId      = $user->id;
+        $this->editName    = $user->name;
+        $this->editEmail   = $user->email;
+        $this->editPhone   = $user->phone ?? '';
+        $this->editAddress = $user->address ?? '';
+        $this->editCity    = $user->city ?? '';
+        $this->editState   = $user->state ?? '';
+        $this->editZip     = $user->zip ?? '';
+
+        $this->modal('edit-client')->show();
+    }
+
+    public function updateClient(): void
+    {
+        $this->validate([
+            'editName'    => ['required', 'string', 'max:255'],
+            'editEmail'   => ['required', 'email', "unique:users,email,{$this->editId}"],
+            'editPhone'   => ['nullable', 'string', 'max:30'],
+            'editAddress' => ['nullable', 'string', 'max:255'],
+            'editCity'    => ['nullable', 'string', 'max:100'],
+            'editState'   => ['nullable', 'string', 'max:100'],
+            'editZip'     => ['nullable', 'string', 'max:20'],
+        ]);
+
+        $user = User::findOrFail($this->editId);
+
+        $addressChanged = $user->address !== $this->editAddress
+            || $user->city !== $this->editCity
+            || $user->state !== $this->editState
+            || $user->zip !== $this->editZip;
+
+        $user->update([
+            'name'    => $this->editName,
+            'email'   => $this->editEmail,
+            'phone'   => $this->editPhone ?: null,
+            'address' => $this->editAddress ?: null,
+            'city'    => $this->editCity ?: null,
+            'state'   => $this->editState ?: null,
+            'zip'     => $this->editZip ?: null,
+        ]);
+
+        if ($addressChanged) {
+            $this->geocodeUser($user);
+        }
+
+        $this->modal('edit-client')->close();
+        session()->flash('success', "Client \"{$user->name}\" updated.");
+    }
+
+    protected function geocodeUser(User $user): void
+    {
+        $parts = array_filter([$user->address, $user->city, $user->state, $user->zip]);
+
+        if (empty($parts)) {
+            return;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => config('app.name') . ' geo/1.0',
+            ])->get('https://nominatim.openstreetmap.org/search', [
+                'q'      => implode(', ', $parts),
+                'format' => 'json',
+                'limit'  => 1,
+            ]);
+
+            $results = $response->json();
+
+            if (! empty($results[0])) {
+                $user->update([
+                    'latitude'  => $results[0]['lat'],
+                    'longitude' => $results[0]['lon'],
+                ]);
+            }
+        } catch (\Throwable) {
+            // Geocoding failed silently — coordinates remain null
+        }
     }
 
     public function with(): array
@@ -192,6 +299,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </td>
                             <td class="px-6 py-4 text-right" x-on:click.stop>
                                 <div class="flex items-center justify-end gap-2">
+                                    <flux:button wire:click="openEdit({{ $client->id }})" variant="ghost" size="sm" icon="pencil" />
                                     @can('manage quotes')
                                         <flux:button
                                             href="{{ route('admin.quotes.create', ['client' => $client->id]) }}"
@@ -290,10 +398,43 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:input wire:model="newName" label="Full Name" placeholder="John Doe" />
             <flux:input wire:model="newEmail" label="Email" type="email" placeholder="john@example.com" />
             <flux:input wire:model="newPhone" label="Phone (optional)" placeholder="+1 555 000 0000" />
+            <flux:input wire:model="newAddress" label="Address (optional)" placeholder="123 Main St" />
+            <div class="grid grid-cols-3 gap-3">
+                <flux:input wire:model="newCity" label="City" placeholder="Houston" class="col-span-1" />
+                <flux:input wire:model="newState" label="State" placeholder="TX" class="col-span-1" />
+                <flux:input wire:model="newZip" label="ZIP" placeholder="77001" class="col-span-1" />
+            </div>
 
             <div class="flex gap-2 pt-1">
                 <flux:button wire:click="createClient" variant="primary" icon="user-plus">
                     Create & Notify
+                </flux:button>
+                <flux:modal.close>
+                    <flux:button variant="ghost">Cancel</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Edit Client Modal --}}
+    <flux:modal name="edit-client" class="w-full max-w-md" :dismissible="false">
+        <div class="flex flex-col gap-4 p-1">
+            <flux:heading size="lg">Edit Client</flux:heading>
+
+            <flux:input wire:model="editName" label="Full Name" placeholder="John Doe" />
+            <flux:input wire:model="editEmail" label="Email" type="email" placeholder="john@example.com" />
+            <flux:input wire:model="editPhone" label="Phone (optional)" placeholder="+1 555 000 0000" />
+            <flux:input wire:model="editAddress" label="Address (optional)" placeholder="123 Main St" />
+            <div class="grid grid-cols-3 gap-3">
+                <flux:input wire:model="editCity" label="City" placeholder="Houston" class="col-span-1" />
+                <flux:input wire:model="editState" label="State" placeholder="TX" class="col-span-1" />
+                <flux:input wire:model="editZip" label="ZIP" placeholder="77001" class="col-span-1" />
+            </div>
+            <p class="text-xs text-zinc-400">Coordinates will be updated automatically when the address changes.</p>
+
+            <div class="flex gap-2 pt-1">
+                <flux:button wire:click="updateClient" variant="primary" icon="check">
+                    Save Changes
                 </flux:button>
                 <flux:modal.close>
                     <flux:button variant="ghost">Cancel</flux:button>

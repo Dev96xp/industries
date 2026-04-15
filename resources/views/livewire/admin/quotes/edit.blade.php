@@ -4,6 +4,7 @@ use App\Models\Product;
 use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
+use App\Models\QuotePayment;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
@@ -20,6 +21,16 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     /** @var array<int, array{id: int|null, product_id: int|null, description: string, quantity: string, unit_price: string, unit: string}> */
     public array $items = [];
+
+    // Payment modal
+    public bool   $showPaymentModal = false;
+    public string $paymentAmount    = '';
+    public string $paymentDate      = '';
+    public string $paymentMethod    = 'cash';
+    public string $paymentNotes     = '';
+
+    // Stripe charge amount
+    public string $stripeAmount = '';
 
     public function mount(Quote $quote): void
     {
@@ -43,8 +54,20 @@ new #[Layout('components.layouts.app')] class extends Component {
         ])->toArray();
     }
 
+    private function isFullyPaid(): bool
+    {
+        $this->quote->loadMissing('payments', 'items');
+        $paid = (float) $this->quote->payments->sum('amount');
+
+        return $paid > 0 && $paid >= $this->quote->total;
+    }
+
     public function addItem(): void
     {
+        if ($this->isFullyPaid()) {
+            return;
+        }
+
         $this->items[] = ['id' => null, 'product_id' => null, 'description' => '', 'quantity' => '1', 'unit_price' => '', 'discount' => '0', 'unit' => ''];
     }
 
@@ -62,7 +85,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             return;
         }
 
-        $this->items[$index]['product_id'] = $product->id;
+        $this->items[$index]['product_id']  = $product->id;
         $this->items[$index]['description'] = $product->name;
         $this->items[$index]['unit_price']  = $product->unit_price ? (string) $product->unit_price : '';
         $this->items[$index]['unit']        = $product->unit ?? '';
@@ -70,6 +93,10 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function removeItem(int $index): void
     {
+        if ($this->isFullyPaid()) {
+            return;
+        }
+
         if (! empty($this->items[$index]['id'])) {
             QuoteItem::find($this->items[$index]['id'])?->delete();
         }
@@ -88,11 +115,27 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $products = Product::with('category')->where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit_price', 'unit', 'category_id']);
 
-        return compact('subtotal', 'taxAmount', 'total', 'products');
+        $this->quote->load('payments');
+        $amountPaid  = (float) $this->quote->payments->where('status', 'completed')->sum('amount');
+        $balanceDue  = round($total - $amountPaid, 2);
+        $fullyPaid   = $amountPaid > 0 && $amountPaid >= $total;
+
+        // Pre-fill Stripe amount with balance if empty
+        if ($this->stripeAmount === '') {
+            $this->stripeAmount = $balanceDue > 0 ? (string) $balanceDue : '';
+        }
+
+        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid');
     }
 
     public function save(): void
     {
+        if ($this->isFullyPaid()) {
+            session()->flash('error', 'This quote is fully paid and cannot be modified.');
+
+            return;
+        }
+
         $this->validate([
             'quote_date'      => ['required', 'date'],
             'expiration_date' => ['nullable', 'date'],
@@ -164,6 +207,90 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $this->redirect(route('admin.projects.edit', $project), navigate: true);
     }
+
+    public function openPaymentModal(): void
+    {
+        $this->paymentDate   = now()->format('Y-m-d');
+        $this->paymentAmount = '';
+        $this->paymentMethod = 'cash';
+        $this->paymentNotes  = '';
+        $this->showPaymentModal = true;
+    }
+
+    public function recordPayment(): void
+    {
+        $this->validate([
+            'paymentAmount' => ['required', 'numeric', 'min:0.01'],
+            'paymentDate'   => ['required', 'date'],
+            'paymentMethod' => ['required', 'in:cash,check,transfer,card'],
+            'paymentNotes'  => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $this->quote->payments()->create([
+            'amount'  => $this->paymentAmount,
+            'paid_at' => $this->paymentDate,
+            'method'  => $this->paymentMethod,
+            'notes'   => $this->paymentNotes ?: null,
+        ]);
+
+        $this->quote->refresh();
+        $this->showPaymentModal = false;
+        session()->flash('success', 'Payment recorded successfully.');
+    }
+
+    public function deletePayment(int $id): void
+    {
+        QuotePayment::where('quote_id', $this->quote->id)->findOrFail($id)->delete();
+        $this->quote->refresh();
+    }
+
+    public function createStripeLink(): void
+    {
+        $this->validate([
+            'stripeAmount' => ['required', 'numeric', 'min:0.50'],
+        ], [
+            'stripeAmount.required' => 'Enter the amount to charge.',
+            'stripeAmount.min'      => 'Minimum charge is $0.50.',
+        ]);
+
+        $amount = round((float) $this->stripeAmount, 2);
+
+        try {
+            $stripe = new \Stripe\StripeClient(config('services.stripe.secret'));
+
+            $paymentLink = $stripe->paymentLinks->create([
+                'line_items' => [[
+                    'price_data' => [
+                        'currency'     => 'usd',
+                        'product_data' => [
+                            'name' => 'Quote ' . $this->quote->number . ' — ' . $this->quote->client_name,
+                        ],
+                        'unit_amount' => (int) round($amount * 100),
+                    ],
+                    'quantity' => 1,
+                ]],
+                'metadata' => [
+                    'quote_id'     => $this->quote->id,
+                    'quote_number' => $this->quote->number,
+                ],
+            ]);
+
+            $this->quote->payments()->create([
+                'amount'              => $amount,
+                'paid_at'             => now()->format('Y-m-d'),
+                'method'              => 'card',
+                'status'              => 'pending',
+                'notes'               => 'Stripe Payment Link — awaiting payment',
+                'stripe_payment_link' => $paymentLink->url,
+            ]);
+
+            $this->stripeAmount = '';
+            $this->quote->refresh();
+            session()->flash('stripe_link', $paymentLink->url);
+        } catch (\Throwable $e) {
+            session()->flash('error', 'Stripe error: ' . $e->getMessage());
+        }
+    }
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6 p-1 sm:p-6">
@@ -197,6 +324,17 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
+    {{-- Fully paid lock banner --}}
+    @if($fullyPaid)
+        <div class="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 dark:border-green-800 dark:bg-green-900/20 max-w-6xl">
+            <flux:icon.lock-closed class="size-5 shrink-0 text-green-600 dark:text-green-400" />
+            <div>
+                <p class="font-semibold text-green-800 dark:text-green-300">Quote fully paid — read only</p>
+                <p class="text-sm text-green-700 dark:text-green-400">This quote has been paid in full and can no longer be modified.</p>
+            </div>
+        </div>
+    @endif
+
     {{-- Success / Error --}}
     @if(session('success'))
         <flux:callout variant="success" icon="check-circle">{{ session('success') }}</flux:callout>
@@ -204,8 +342,20 @@ new #[Layout('components.layouts.app')] class extends Component {
     @if(session('error'))
         <flux:callout variant="danger" icon="exclamation-circle">{{ session('error') }}</flux:callout>
     @endif
+    @if(session('stripe_link'))
+        <flux:callout variant="success" icon="credit-card">
+            <div class="flex items-center justify-between gap-4 flex-wrap">
+                <span>Stripe Payment Link created! Share it with your client:</span>
+                <a href="{{ session('stripe_link') }}" target="_blank"
+                    class="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 transition">
+                    Open Link
+                </a>
+            </div>
+            <p class="mt-1 text-xs text-zinc-500 break-all">{{ session('stripe_link') }}</p>
+        </flux:callout>
+    @endif
 
-    <form wire:submit="save" class="flex flex-col gap-6 max-w-6xl">
+    <form wire:submit="save" class="flex flex-col gap-6 max-w-6xl {{ $fullyPaid ? 'pointer-events-none opacity-60 select-none' : '' }}">
 
         {{-- Client card (read-only) --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
@@ -433,10 +583,186 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
         </div>
 
-        <div class="flex gap-3">
-            <flux:button type="submit" variant="primary">Save Changes</flux:button>
-        </div>
+        @if(! $fullyPaid)
+            <div class="flex gap-3">
+                <flux:button type="submit" variant="primary">Save Changes</flux:button>
+            </div>
+        @endif
 
     </form>
+
+    {{-- ─── Payments Section (outside the form) ─────────────────────────── --}}
+    <div class="max-w-6xl rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+
+        {{-- Header row --}}
+        <div class="flex items-center justify-between mb-5">
+            <div>
+                <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Payments</h3>
+                <p class="text-xs text-zinc-400 mt-0.5">Track payments received for this quote.</p>
+            </div>
+            @if(! $fullyPaid)
+                <div class="flex items-center gap-2 flex-wrap">
+                    <flux:button wire:click="openPaymentModal" size="sm" icon="plus">
+                        Record Payment
+                    </flux:button>
+                    <div class="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 dark:border-zinc-700 dark:bg-zinc-800">
+                        <span class="text-sm text-zinc-400">$</span>
+                        <input
+                            wire:model="stripeAmount"
+                            type="number"
+                            step="0.01"
+                            min="0.50"
+                            placeholder="{{ number_format($balanceDue, 2) }}"
+                            class="w-24 bg-transparent text-sm text-zinc-900 placeholder-zinc-300 focus:outline-none dark:text-zinc-100"
+                        />
+                    </div>
+                    <flux:button wire:click="createStripeLink" size="sm" variant="filled" icon="credit-card"
+                        wire:loading.attr="disabled" wire:target="createStripeLink">
+                        <span wire:loading.remove wire:target="createStripeLink">Charge with Stripe</span>
+                        <span wire:loading wire:target="createStripeLink">Creating link...</span>
+                    </flux:button>
+                </div>
+                <flux:error name="stripeAmount" />
+            @endif
+        </div>
+
+        {{-- Payment summary badges --}}
+        <div class="mb-5 flex flex-wrap gap-4">
+            <div class="flex flex-col items-center rounded-xl border border-zinc-100 bg-zinc-50 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-800/50">
+                <span class="text-xs text-zinc-400 uppercase tracking-wider">Quote Total</span>
+                <span class="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                    ${{ number_format($quote->fresh()->total, 2) }}
+                </span>
+            </div>
+            <div class="flex flex-col items-center rounded-xl border border-green-100 bg-green-50 px-5 py-3 dark:border-green-900/30 dark:bg-green-900/20">
+                <span class="text-xs text-green-600 uppercase tracking-wider">Paid</span>
+                <span class="mt-1 text-lg font-bold text-green-700 dark:text-green-400">
+                    ${{ number_format($amountPaid, 2) }}
+                </span>
+            </div>
+            <div class="flex flex-col items-center rounded-xl border {{ $balanceDue > 0 ? 'border-red-100 bg-red-50 dark:border-red-900/30 dark:bg-red-900/20' : 'border-green-100 bg-green-50 dark:border-green-900/30 dark:bg-green-900/20' }} px-5 py-3">
+                <span class="text-xs {{ $balanceDue > 0 ? 'text-red-500' : 'text-green-600' }} uppercase tracking-wider">Balance Due</span>
+                <span class="mt-1 text-lg font-bold {{ $balanceDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400' }}">
+                    ${{ number_format($balanceDue, 2) }}
+                </span>
+            </div>
+        </div>
+
+        {{-- Payments table --}}
+        @if($quote->payments->isEmpty())
+            <p class="text-sm text-zinc-400 py-4 text-center">No payments recorded yet.</p>
+        @else
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-zinc-100 dark:border-zinc-800 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                            <th class="pb-2 text-left">Date</th>
+                            <th class="pb-2 text-left">Method</th>
+                            <th class="pb-2 text-left">Status</th>
+                            <th class="pb-2 text-left">Notes</th>
+                            <th class="pb-2 text-right">Amount</th>
+                            <th class="pb-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-50 dark:divide-zinc-800">
+                        @foreach($quote->payments as $payment)
+                            <tr class="group {{ $payment->status === 'pending' ? 'opacity-60' : '' }}">
+                                <td class="py-3 text-zinc-700 dark:text-zinc-300">
+                                    {{ $payment->paid_at->format('M d, Y') }}
+                                </td>
+                                <td class="py-3">
+                                    @php
+                                        $methodColors = [
+                                            'cash'     => 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                                            'check'    => 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                                            'transfer' => 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                                            'card'     => 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+                                        ];
+                                    @endphp
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ $methodColors[$payment->method] ?? '' }}">
+                                        {{ $payment->method_label }}
+                                    </span>
+                                </td>
+                                <td class="py-3">
+                                    @if($payment->status === 'pending')
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                            <flux:icon.clock class="size-3" /> Awaiting
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                            <flux:icon.check class="size-3" /> Confirmed
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="py-3 text-zinc-500 text-xs max-w-xs">
+                                    @if($payment->stripe_payment_link)
+                                        <a href="{{ $payment->stripe_payment_link }}" target="_blank"
+                                            class="inline-flex items-center gap-1 text-blue-500 hover:text-blue-700 transition">
+                                            <flux:icon.arrow-top-right-on-square class="size-3.5" />
+                                            Open Stripe Link
+                                        </a>
+                                    @elseif($payment->notes)
+                                        {{ $payment->notes }}
+                                    @endif
+                                </td>
+                                <td class="py-3 text-right font-semibold {{ $payment->status === 'pending' ? 'text-zinc-400' : 'text-zinc-900 dark:text-zinc-100' }}">
+                                    ${{ number_format($payment->amount, 2) }}
+                                </td>
+                                <td class="py-3 text-right">
+                                    <button type="button"
+                                        wire:click="deletePayment({{ $payment->id }})"
+                                        wire:confirm="Delete this payment record?"
+                                        class="text-zinc-300 hover:text-red-400 transition opacity-0 group-hover:opacity-100">
+                                        <flux:icon.trash class="size-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    </div>
+
+    {{-- Record Payment Modal --}}
+    <flux:modal wire:model="showPaymentModal" name="record-payment" class="w-full max-w-md">
+        <div class="p-6 flex flex-col gap-5">
+            <flux:heading size="lg">Record Payment</flux:heading>
+
+            <flux:field>
+                <flux:label>Amount <flux:badge size="sm" color="red" class="ml-1">Required</flux:badge></flux:label>
+                <flux:input wire:model="paymentAmount" type="number" step="0.01" min="0.01" placeholder="0.00" />
+                <flux:error name="paymentAmount" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Date <flux:badge size="sm" color="red" class="ml-1">Required</flux:badge></flux:label>
+                <flux:input wire:model="paymentDate" type="date" />
+                <flux:error name="paymentDate" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Method</flux:label>
+                <flux:select wire:model="paymentMethod">
+                    <flux:select.option value="cash">Cash</flux:select.option>
+                    <flux:select.option value="check">Check</flux:select.option>
+                    <flux:select.option value="transfer">Bank Transfer</flux:select.option>
+                    <flux:select.option value="card">Card (manual)</flux:select.option>
+                </flux:select>
+                <flux:error name="paymentMethod" />
+            </flux:field>
+
+            <flux:field>
+                <flux:label>Notes</flux:label>
+                <flux:textarea wire:model="paymentNotes" rows="2" placeholder="Check #1234, reference, etc." />
+                <flux:error name="paymentNotes" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3 pt-1">
+                <flux:button wire:click="$set('showPaymentModal', false)" variant="ghost">Cancel</flux:button>
+                <flux:button wire:click="recordPayment" variant="primary">Save Payment</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 
 </div>

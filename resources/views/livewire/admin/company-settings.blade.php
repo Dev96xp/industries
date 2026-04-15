@@ -59,7 +59,14 @@ new #[Layout('components.layouts.app')] class extends Component {
             'linkedin'        => 'nullable|string|max:255',
         ]);
 
-        CompanySetting::current()->update([
+        $settings = CompanySetting::current();
+
+        $addressChanged = $settings->address !== ($this->address ?: null)
+            || $settings->city !== ($this->city ?: null)
+            || $settings->state !== ($this->state ?: null)
+            || $settings->zip !== ($this->zip ?: null);
+
+        $settings->update([
             'company_name'    => $this->company_name,
             'tagline'         => $this->tagline ?: null,
             'address'         => $this->address ?: null,
@@ -75,6 +82,33 @@ new #[Layout('components.layouts.app')] class extends Component {
             'instagram'       => $this->instagram ?: null,
             'linkedin'        => $this->linkedin ?: null,
         ]);
+
+        if ($addressChanged) {
+            $parts = array_filter([$this->address, $this->city, $this->state, $this->zip]);
+
+            if (! empty($parts)) {
+                try {
+                    $response = \Illuminate\Support\Facades\Http::withHeaders([
+                        'User-Agent' => config('app.name') . ' geo/1.0',
+                    ])->get('https://nominatim.openstreetmap.org/search', [
+                        'q'      => implode(', ', $parts),
+                        'format' => 'json',
+                        'limit'  => 1,
+                    ]);
+
+                    $results = $response->json();
+
+                    if (! empty($results[0])) {
+                        $settings->update([
+                            'latitude'  => $results[0]['lat'],
+                            'longitude' => $results[0]['lon'],
+                        ]);
+                    }
+                } catch (\Throwable) {
+                    // Geocoding failed silently
+                }
+            }
+        }
 
         session()->flash('success', 'Company information saved successfully.');
     }

@@ -40,4 +40,10 @@ return [
         'model' => env('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
 ];

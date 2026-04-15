@@ -27,6 +27,8 @@
                 @can('manage users')
                     <flux:navlist.item icon="user-group" :href="route('admin.clients')"
                         :current="request()->routeIs('admin.clients')" wire:navigate>Clients</flux:navlist.item>
+                    <flux:navlist.item icon="map-pin" :href="route('admin.clients.map')"
+                        :current="request()->routeIs('admin.clients.map')" wire:navigate>Clients Map</flux:navlist.item>
                 @endcan
 
                 @can('manage quotes')
