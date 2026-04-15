@@ -282,6 +282,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                 'status'              => 'pending',
                 'notes'               => 'Stripe Payment Link — awaiting payment',
                 'stripe_payment_link' => $paymentLink->url,
+                'stripe_session_id'   => $paymentLink->id,
             ]);
 
             $this->stripeAmount = '';

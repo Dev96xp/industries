@@ -29,23 +29,37 @@ class StripeWebhookController extends Controller
 
         if ($event->type === 'checkout.session.completed') {
             $session = $event->data->object;
-            $quoteId = $session->metadata->quote_id ?? null;
 
-            if ($quoteId) {
-                // Find the oldest pending card payment for this quote and mark it completed
-                $payment = QuotePayment::where('quote_id', $quoteId)
+            // Primary lookup: match by the Payment Link ID stored at creation time
+            $payment = null;
+            $paymentLinkId = $session->payment_link ?? null;
+
+            if ($paymentLinkId) {
+                $payment = QuotePayment::where('stripe_session_id', $paymentLinkId)
                     ->where('status', 'pending')
                     ->where('method', 'card')
-                    ->orderBy('created_at')
                     ->first();
+            }
 
-                if ($payment) {
-                    $payment->update([
-                        'status' => 'completed',
-                        'stripe_session_id' => $session->id,
-                        'notes' => 'Paid via Stripe',
-                    ]);
+            // Fallback: legacy lookup via session metadata quote_id
+            if (! $payment) {
+                $quoteId = $session->metadata->quote_id ?? null;
+
+                if ($quoteId) {
+                    $payment = QuotePayment::where('quote_id', $quoteId)
+                        ->where('status', 'pending')
+                        ->where('method', 'card')
+                        ->orderBy('created_at')
+                        ->first();
                 }
+            }
+
+            if ($payment) {
+                $payment->update([
+                    'status' => 'completed',
+                    'stripe_session_id' => $session->id,
+                    'notes' => 'Paid via Stripe',
+                ]);
             }
         }
 
