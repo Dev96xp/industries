@@ -244,6 +244,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->quote->refresh();
     }
 
+    public function confirmPayment(int $id): void
+    {
+        $payment = QuotePayment::where('quote_id', $this->quote->id)->findOrFail($id);
+        $payment->update(['status' => 'completed']);
+        $this->quote->refresh();
+    }
+
     public function createStripeLink(): void
     {
         $this->validate([
@@ -710,12 +717,22 @@ new #[Layout('components.layouts.app')] class extends Component {
                                     ${{ number_format($payment->amount, 2) }}
                                 </td>
                                 <td class="py-3 text-right">
-                                    <button type="button"
-                                        wire:click="deletePayment({{ $payment->id }})"
-                                        wire:confirm="Delete this payment record?"
-                                        class="text-zinc-300 hover:text-red-400 transition opacity-0 group-hover:opacity-100">
-                                        <flux:icon.trash class="size-4" />
-                                    </button>
+                                    <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition">
+                                        @if($payment->status === 'pending')
+                                            <button type="button"
+                                                wire:click="confirmPayment({{ $payment->id }})"
+                                                class="text-zinc-300 hover:text-green-500 transition"
+                                                title="Mark as Confirmed">
+                                                <flux:icon.check-circle class="size-4" />
+                                            </button>
+                                        @endif
+                                        <button type="button"
+                                            wire:click="deletePayment({{ $payment->id }})"
+                                            wire:confirm="Delete this payment record?"
+                                            class="text-zinc-300 hover:text-red-400 transition">
+                                            <flux:icon.trash class="size-4" />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach
