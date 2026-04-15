@@ -40,18 +40,18 @@ class UserFactory extends Factory
 
     public function definition(): array
     {
-        $coords = fake()->randomElement(static::$nebraskaCoords);
+        $coords = $this->faker->randomElement(static::$nebraskaCoords);
 
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'phone' => fake()->numerify('###-###-####'),
-            'address' => fake()->streetAddress(),
-            'city' => fake()->randomElement(['Omaha', 'Lincoln', 'Kearney', 'Grand Island', 'Fremont', 'Columbus', 'Norfolk', 'North Platte', 'Scottsbluff']),
+            'name' => $this->faker->name(),
+            'email' => $this->faker->unique()->safeEmail(),
+            'phone' => $this->faker->numerify('###-###-####'),
+            'address' => $this->faker->streetAddress(),
+            'city' => $this->faker->randomElement(['Omaha', 'Lincoln', 'Kearney', 'Grand Island', 'Fremont', 'Columbus', 'Norfolk', 'North Platte', 'Scottsbluff']),
             'state' => 'NE',
-            'zip' => fake()->numerify('6####'),
-            'latitude' => $coords['lat'] + fake()->randomFloat(4, -0.02, 0.02),
-            'longitude' => $coords['lng'] + fake()->randomFloat(4, -0.02, 0.02),
+            'zip' => $this->faker->numerify('6####'),
+            'latitude' => $coords['lat'] + $this->faker->randomFloat(4, -0.02, 0.02),
+            'longitude' => $coords['lng'] + $this->faker->randomFloat(4, -0.02, 0.02),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
