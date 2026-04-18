@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Location;
 use App\Models\User;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -14,7 +15,55 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $selectedRole = '';
 
     /** Permissions exposed for editing in the UI (others are preserved but not shown) */
-    private array $editablePermissions = ['manage company settings', 'manage photos', 'manage projects', 'manage quotes', 'manage time entries'];
+    private array $editablePermissions = [
+        'manage clients',
+        'manage company settings',
+        'manage contractors',
+        'manage locations',
+        'manage photos',
+        'manage projects',
+        'manage quote requests',
+        'manage quotes',
+        'manage time entries',
+    ];
+
+    // Staff profile editing
+    public ?int    $editStaffId         = null;
+    public string  $editStaffName       = '';
+    public string  $editStaffPhone      = '';
+    public ?int    $editStaffLocationId = null;
+
+    public function openEditStaff(int $id): void
+    {
+        $user = User::findOrFail($id);
+
+        $this->editStaffId         = $user->id;
+        $this->editStaffName       = $user->name;
+        $this->editStaffPhone      = $user->phone ?? '';
+        $this->editStaffLocationId = $user->location_id;
+
+        $this->modal('edit-staff')->show();
+    }
+
+    public function updateStaff(): void
+    {
+        $this->validate([
+            'editStaffName'       => ['required', 'string', 'max:255'],
+            'editStaffPhone'      => ['nullable', 'string', 'max:50'],
+            'editStaffLocationId' => ['nullable', 'exists:locations,id'],
+        ]);
+
+        $user = User::findOrFail($this->editStaffId);
+
+        $user->update([
+            'name'        => $this->editStaffName,
+            'phone'       => $this->editStaffPhone ?: null,
+            'location_id' => $this->editStaffLocationId,
+        ]);
+
+        $this->modal('edit-staff')->close();
+        session()->flash('success', "Staff member \"{$user->name}\" updated.");
+    }
 
     // Role editing
     public ?int $editingRoleId = null;
@@ -83,10 +132,11 @@ new #[Layout('components.layouts.app')] class extends Component {
     public function with(): array
     {
         return [
-            'users'       => User::with('roles')->whereHas('roles', fn ($q) => $q->where('name', '!=', 'client'))->orderBy('name')->get(),
+            'users'       => User::with(['roles', 'location'])->whereHas('roles', fn ($q) => $q->where('name', '!=', 'client'))->orderBy('name')->get(),
             'clients'     => User::with('roles')->whereHas('roles', fn ($q) => $q->where('name', 'client'))->orderBy('name')->get(),
             'roles'       => Role::with('permissions')->orderBy('name')->get(),
             'permissions' => Permission::whereIn('name', $this->editablePermissions)->orderBy('name')->get(),
+            'locations'   => Location::where('is_active', true)->orderBy('name')->get(),
         ];
     }
 }; ?>
@@ -143,6 +193,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <tr class="border-b border-zinc-100 dark:border-zinc-800">
                             <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">User</th>
                             <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Role</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">Contact</th>
                             <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-zinc-500">Actions</th>
                         </tr>
                     </thead>
@@ -179,6 +230,10 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         @endif
                                     @endif
                                 </td>
+                                <td class="px-6 py-4">
+                                    <p class="text-xs text-zinc-500">{{ $user->phone ?? '—' }}</p>
+                                    <p class="text-xs text-zinc-400">{{ $user->location?->name ?? '—' }}</p>
+                                </td>
                                 <td class="px-6 py-4 text-right">
                                     @if($editingUserId === $user->id)
                                         <div class="flex items-center justify-end gap-2">
@@ -186,9 +241,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             <flux:button wire:click="cancelEdit" variant="ghost" size="sm">Cancel</flux:button>
                                         </div>
                                     @else
-                                        <flux:button wire:click="editUser({{ $user->id }})" variant="ghost" size="sm" icon="pencil">
-                                            Edit Role
-                                        </flux:button>
+                                        <div class="flex items-center justify-end gap-2">
+                                            <flux:button wire:click="openEditStaff({{ $user->id }})" variant="ghost" size="sm" icon="user">
+                                                Edit
+                                            </flux:button>
+                                            <flux:button wire:click="editUser({{ $user->id }})" variant="ghost" size="sm" icon="shield-check">
+                                                Edit Role
+                                            </flux:button>
+                                        </div>
                                     @endif
                                 </td>
                             </tr>
@@ -268,6 +328,35 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
         </div>
     @endif
+
+    {{-- Edit Staff Modal --}}
+    <flux:modal name="edit-staff" class="w-full max-w-md" :dismissible="false">
+        <div class="flex flex-col gap-4 p-1">
+            <flux:heading size="lg">Edit Staff Member</flux:heading>
+
+            <flux:input wire:model="editStaffName" label="Full Name" placeholder="John Doe" />
+            <flux:input wire:model="editStaffPhone" label="Phone (optional)" type="tel" placeholder="+1 555 000 0000" />
+
+            @if($locations->isNotEmpty())
+                <flux:field>
+                    <flux:label>Location</flux:label>
+                    <flux:select wire:model="editStaffLocationId">
+                        <flux:select.option value="">— Select a location —</flux:select.option>
+                        @foreach($locations as $loc)
+                            <flux:select.option value="{{ $loc->id }}">{{ $loc->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            @endif
+
+            <div class="flex gap-2 pt-1">
+                <flux:button wire:click="updateStaff" variant="primary" icon="check">Save Changes</flux:button>
+                <flux:modal.close>
+                    <flux:button variant="ghost">Cancel</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
 
     {{-- ROLES TAB --}}
     @if($activeTab === 'roles')

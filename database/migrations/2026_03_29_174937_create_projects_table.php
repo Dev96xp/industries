@@ -25,6 +25,7 @@ return new class extends Migration
             $table->text('internal_notes')->nullable();
             $table->boolean('is_featured')->default(false);
             $table->boolean('is_archived')->default(false);
+            $table->unsignedBigInteger('location_id')->nullable();
             $table->timestamps();
         });
     }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Location;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +16,7 @@ new #[Layout('components.layouts.auth')] class extends Component {
     public string $phone = '';
     public string $password = '';
     public string $password_confirmation = '';
+    public ?int $location_id = null;
 
     /**
      * Handle an incoming registration request.
@@ -22,10 +24,11 @@ new #[Layout('components.layouts.auth')] class extends Component {
     public function register(): void
     {
         $validated = $this->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
-            'phone'    => ['nullable', 'string', 'max:50'],
-            'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
+            'name'        => ['required', 'string', 'max:255'],
+            'email'       => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
+            'phone'       => ['nullable', 'string', 'max:50'],
+            'location_id' => ['nullable', 'exists:locations,id'],
+            'password'    => ['required', 'string', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
@@ -61,6 +64,22 @@ new #[Layout('components.layouts.auth')] class extends Component {
         <div class="grid gap-2">
             <flux:input wire:model="phone" id="phone" label="{{ __('Phone') }}" type="tel" name="phone" autocomplete="tel" placeholder="+1 (555) 000-0000" />
         </div>
+
+        <!-- Location -->
+        @php $locations = \App\Models\Location::where('is_active', true)->orderBy('name')->get(); @endphp
+        @if($locations->isNotEmpty())
+            <div class="grid gap-2">
+                <flux:field>
+                    <flux:label>{{ __('Location') }}</flux:label>
+                    <flux:select wire:model="location_id">
+                        <flux:select.option value="">— Select a location —</flux:select.option>
+                        @foreach($locations as $loc)
+                            <flux:select.option value="{{ $loc->id }}">{{ $loc->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            </div>
+        @endif
 
         <!-- Password -->
         <div class="grid gap-2">

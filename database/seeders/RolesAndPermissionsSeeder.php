@@ -18,11 +18,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage photos',
             'manage company settings',
             'manage users',
+            'manage clients',
             'manage projects',
             'manage contractors',
             'manage quotes',
             'manage quote requests',
             'manage time entries',
+            'manage locations',
         ];
 
         foreach ($permissions as $permission) {
@@ -32,6 +34,7 @@ class RolesAndPermissionsSeeder extends Seeder
         // Roles
         $superAdmin = Role::firstOrCreate(['name' => 'superadmin']);
         $admin = Role::firstOrCreate(['name' => 'admin']);
+        $manager = Role::firstOrCreate(['name' => 'manager']);
         $editor = Role::firstOrCreate(['name' => 'editor']);
         Role::firstOrCreate(['name' => 'client']);
         Role::firstOrCreate(['name' => 'worker']);
@@ -43,12 +46,17 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin->syncPermissions([
             'manage photos',
             'manage company settings',
+            'manage clients',
             'manage projects',
             'manage contractors',
             'manage quotes',
             'manage quote requests',
             'manage time entries',
+            'manage locations',
         ]);
+
+        // manager has the same permissions as admin
+        $manager->syncPermissions($admin->permissions);
 
         // editor only manages photos
         $editor->syncPermissions([

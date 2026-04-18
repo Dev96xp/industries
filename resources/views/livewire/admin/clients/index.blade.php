@@ -9,13 +9,14 @@ use Spatie\Permission\Models\Role;
 
 new #[Layout('components.layouts.app')] class extends Component {
     // New client form
-    public string $newName    = '';
-    public string $newEmail   = '';
-    public string $newPhone   = '';
-    public string $newAddress = '';
-    public string $newCity    = '';
-    public string $newState   = '';
-    public string $newZip     = '';
+    public string $newName       = '';
+    public string $newEmail      = '';
+    public string $newPhone      = '';
+    public string $newAddress    = '';
+    public string $newCity       = '';
+    public string $newState      = '';
+    public string $newZip        = '';
+    public ?int   $newLocationId = null;
 
     // Edit client form
     public ?int $editId      = null;
@@ -25,7 +26,8 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $editAddress = '';
     public string $editCity    = '';
     public string $editState   = '';
-    public string $editZip     = '';
+    public string $editZip        = '';
+    public ?int   $editLocationId = null;
 
     public function createClient(): void
     {
@@ -46,8 +48,9 @@ new #[Layout('components.layouts.app')] class extends Component {
             'address'  => $this->newAddress ?: null,
             'city'     => $this->newCity ?: null,
             'state'    => $this->newState ?: null,
-            'zip'      => $this->newZip ?: null,
-            'password' => bcrypt(Str::random(32)),
+            'zip'         => $this->newZip ?: null,
+            'location_id' => $this->newLocationId ?: null,
+            'password'    => bcrypt(Str::random(32)),
         ]);
 
         $user->assignRole(Role::firstOrCreate(['name' => 'client']));
@@ -56,7 +59,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         Password::sendResetLink(['email' => $this->newEmail]);
 
-        $this->reset('newName', 'newEmail', 'newPhone', 'newAddress', 'newCity', 'newState', 'newZip');
+        $this->reset('newName', 'newEmail', 'newPhone', 'newAddress', 'newCity', 'newState', 'newZip', 'newLocationId');
         $this->modal('create-client')->close();
         session()->flash('success', "Client \"{$user->name}\" created and notified by email.");
     }
@@ -72,7 +75,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->editAddress = $user->address ?? '';
         $this->editCity    = $user->city ?? '';
         $this->editState   = $user->state ?? '';
-        $this->editZip     = $user->zip ?? '';
+        $this->editZip        = $user->zip ?? '';
+        $this->editLocationId = $user->location_id;
 
         $this->modal('edit-client')->show();
     }
@@ -86,7 +90,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             'editAddress' => ['nullable', 'string', 'max:255'],
             'editCity'    => ['nullable', 'string', 'max:100'],
             'editState'   => ['nullable', 'string', 'max:100'],
-            'editZip'     => ['nullable', 'string', 'max:20'],
+            'editZip'        => ['nullable', 'string', 'max:20'],
+            'editLocationId' => ['nullable', 'exists:locations,id'],
         ]);
 
         $user = User::findOrFail($this->editId);
@@ -103,7 +108,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             'address' => $this->editAddress ?: null,
             'city'    => $this->editCity ?: null,
             'state'   => $this->editState ?: null,
-            'zip'     => $this->editZip ?: null,
+            'zip'         => $this->editZip ?: null,
+            'location_id' => $this->editLocationId,
         ]);
 
         if ($addressChanged) {
@@ -144,14 +150,26 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
+    public ?int $locationFilter = null;
+
+    public function mount(): void
+    {
+        $user = auth()->user();
+        if ($user->hasRole('admin') && ! $user->hasRole('superadmin') && $user->location_id) {
+            $this->locationFilter = $user->location_id;
+        }
+    }
+
     public function with(): array
     {
         return [
             'clients' => User::with(['roles', 'quotes' => fn ($q) => $q->orderByDesc('created_at')])
                 ->whereHas('roles', fn ($q) => $q->where('name', 'client'))
                 ->withCount(['projects', 'quotes'])
+                ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter))
                 ->orderBy('name')
                 ->get(),
+            'locations' => \App\Models\Location::where('is_active', true)->orderBy('name')->get(),
         ];
     }
 }; ?>
@@ -164,7 +182,15 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:heading size="xl">Clients</flux:heading>
             <flux:text class="mt-1 text-zinc-500">All registered clients.</flux:text>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
+            @if($locations->isNotEmpty())
+                <flux:select wire:model.live="locationFilter" size="sm" class="min-w-40">
+                    <flux:select.option value="">All Locations</flux:select.option>
+                    @foreach($locations as $loc)
+                        <flux:select.option value="{{ $loc->id }}">{{ $loc->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
             <flux:badge color="amber" size="lg">{{ $clients->count() }} Clients</flux:badge>
             <flux:modal.trigger name="create-client">
                 <flux:button variant="primary" icon="user-plus" size="sm">New Client</flux:button>
@@ -405,6 +431,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:input wire:model="newZip" label="ZIP" placeholder="77001" class="col-span-1" />
             </div>
 
+            @if($locations->isNotEmpty())
+                <flux:field>
+                    <flux:label>Location (optional)</flux:label>
+                    <flux:select wire:model="newLocationId">
+                        <flux:select.option value="">— No location —</flux:select.option>
+                        @foreach($locations as $loc)
+                            <flux:select.option value="{{ $loc->id }}">{{ $loc->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            @endif
+
             <div class="flex gap-2 pt-1">
                 <flux:button wire:click="createClient" variant="primary" icon="user-plus">
                     Create & Notify
@@ -425,6 +463,17 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:input wire:model="editEmail" label="Email" type="email" placeholder="john@example.com" />
             <flux:input wire:model="editPhone" label="Phone (optional)" placeholder="+1 555 000 0000" />
             <flux:input wire:model="editAddress" label="Address (optional)" placeholder="123 Main St" />
+            @if($locations->isNotEmpty())
+                <flux:field>
+                    <flux:label>Location</flux:label>
+                    <flux:select wire:model="editLocationId">
+                        <flux:select.option value="">— Select a location —</flux:select.option>
+                        @foreach($locations as $loc)
+                            <flux:select.option value="{{ $loc->id }}">{{ $loc->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </flux:field>
+            @endif
             <div class="grid grid-cols-3 gap-3">
                 <flux:input wire:model="editCity" label="City" placeholder="Houston" class="col-span-1" />
                 <flux:input wire:model="editState" label="State" placeholder="TX" class="col-span-1" />

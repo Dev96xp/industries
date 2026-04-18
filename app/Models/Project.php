@@ -27,6 +27,7 @@ class Project extends Model
         'internal_notes',
         'is_featured',
         'is_archived',
+        'location_id',
         'latitude',
         'longitude',
         'geo_radius',
@@ -46,6 +47,11 @@ class Project extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(User::class, 'client_user_id');
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
     }
 
     public function photos(): HasMany

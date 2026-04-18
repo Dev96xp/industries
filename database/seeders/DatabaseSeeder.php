@@ -20,10 +20,13 @@ class DatabaseSeeder extends Seeder
         Storage::disk('public')->deleteDirectory('receipts');
 
         $this->call(RolesAndPermissionsSeeder::class);   // Ejecuta el seeder de roles y permisos antes de crear usuarios
+        $this->call(LocationSeeder::class);              // Locations (Lincoln, Omaha, Grand Island, Kansas City)
         $this->call(UserSeeder::class);                  // Ejecuta el seeder de usuarios
         $this->call(CategorySeeder::class);              // Categorías de productos
         $this->call(ProductSeeder::class);               // Productos del catálogo
         $this->call(QuoteSeeder::class);                 // Cotizaciones de ejemplo
+        $this->call(ProjectSeeder::class);               // Proyectos de prueba (próximos 2 meses)
+        $this->call(ContractorSeeder::class);            // Contratistas de prueba
 
         $superAdmin = User::firstOrCreate(
             ['email' => 'admin@industries.com'],

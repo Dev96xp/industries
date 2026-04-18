@@ -24,7 +24,7 @@
             </flux:navlist.group>
             <flux:navlist.group heading="Website" class="grid">
 
-                @can('manage users')
+                @can('manage clients')
                     <flux:navlist.item icon="user-group" :href="route('admin.clients')"
                         :current="request()->routeIs('admin.clients')" wire:navigate>Clients</flux:navlist.item>
                     <flux:navlist.item icon="map-pin" :href="route('admin.clients.map')"
@@ -53,6 +53,8 @@
                             :current="request()->routeIs('admin.projects') || request()->routeIs('admin.projects.create') || request()->routeIs('admin.projects.edit')" wire:navigate>Projects</flux:navlist.item>
                         <flux:navlist.item icon="view-columns" :href="route('admin.projects.kanban')"
                             :current="request()->routeIs('admin.projects.kanban')" wire:navigate>Board</flux:navlist.item>
+                        <flux:navlist.item icon="calendar-days" :href="route('admin.projects.calendar')"
+                            :current="request()->routeIs('admin.projects.calendar')" wire:navigate>Calendar</flux:navlist.item>
                         <flux:navlist.item icon="receipt-percent" :href="route('admin.receipts')"
                             :current="request()->routeIs('admin.receipts')" wire:navigate>Receipts</flux:navlist.item>
                     </flux:navlist.group>
@@ -87,12 +89,16 @@
                     <flux:navlist.item icon="clock" :href="route('admin.time-entries')"
                         :current="request()->routeIs('admin.time-entries*')" wire:navigate>Time Entries</flux:navlist.item>
                 @endcan
-                @canany(['manage users'])
+                @canany(['manage users', 'manage locations'])
                     <flux:navlist.group heading="Admin" icon="shield-check" expandable
-                        :expanded="request()->routeIs('admin.users') || request()->routeIs('admin.system-settings')">
+                        :expanded="request()->routeIs('admin.users') || request()->routeIs('admin.locations*') || request()->routeIs('admin.system-settings')">
                         @can('manage users')
                             <flux:navlist.item icon="users" :href="route('admin.users')"
                                 :current="request()->routeIs('admin.users')" wire:navigate>Users</flux:navlist.item>
+                        @endcan
+                        @can('manage locations')
+                            <flux:navlist.item icon="map-pin" :href="route('admin.locations')"
+                                :current="request()->routeIs('admin.locations*')" wire:navigate>Locations</flux:navlist.item>
                         @endcan
                         @role('superadmin')
                             <flux:navlist.item icon="cog-6-tooth" :href="route('admin.system-settings')"

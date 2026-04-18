@@ -2,7 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Models\Location;
 use App\Models\User;
+use Faker\Generator;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -40,7 +42,7 @@ class UserFactory extends Factory
 
     public function definition(): array
     {
-        $faker = app(\Faker\Generator::class);
+        $faker = app(Generator::class);
         $coords = $faker->randomElement(static::$nebraskaCoords);
 
         return [
@@ -53,6 +55,7 @@ class UserFactory extends Factory
             'zip' => $faker->numerify('6####'),
             'latitude' => $coords['lat'] + $faker->randomFloat(4, -0.02, 0.02),
             'longitude' => $coords['lng'] + $faker->randomFloat(4, -0.02, 0.02),
+            'location_id' => Location::inRandomOrder()->value('id'),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),

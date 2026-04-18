@@ -5,7 +5,16 @@ use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
-    public bool $showArchived = false;
+    public bool $showArchived   = false;
+    public ?int $locationFilter = null;
+
+    public function mount(): void
+    {
+        $user = auth()->user();
+        if ($user->hasRole('admin') && ! $user->hasRole('superadmin') && $user->location_id) {
+            $this->locationFilter = $user->location_id;
+        }
+    }
 
     public function archiveProject(Project $project): void
     {
@@ -23,11 +32,13 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $query = Project::with(['client', 'photos'])
             ->where('is_archived', $this->showArchived)
+            ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter))
             ->orderByDesc('created_at');
 
         return [
-            'projects'       => $query->get(),
-            'archivedCount'  => Project::where('is_archived', true)->count(),
+            'projects'      => $query->get(),
+            'archivedCount' => Project::where('is_archived', true)->count(),
+            'locations'     => \App\Models\Location::where('is_active', true)->orderBy('name')->get(),
         ];
     }
 }; ?>
@@ -40,7 +51,15 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:heading size="xl">Projects</flux:heading>
             <flux:text class="mt-1 text-zinc-500">Manage construction projects.</flux:text>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
+            @if($locations->isNotEmpty())
+                <flux:select wire:model.live="locationFilter" size="sm" class="min-w-40">
+                    <flux:select.option value="">All Locations</flux:select.option>
+                    @foreach($locations as $loc)
+                        <flux:select.option value="{{ $loc->id }}">{{ $loc->name }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
             @if($archivedCount > 0)
                 <button wire:click="$toggle('showArchived')"
                     class="flex items-center gap-1.5 text-sm transition {{ $showArchived ? 'text-amber-600 font-semibold' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300' }}">
@@ -78,7 +97,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             </p>
         </div>
     @else
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             @foreach($projects as $project)
                 <div class="flex flex-col rounded-2xl border overflow-hidden transition
                     {{ $project->is_archived

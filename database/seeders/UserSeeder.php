@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Location;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -9,6 +10,8 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        $locations = Location::orderBy('name')->get()->keyBy('name');
+
         $clients = [
             [
                 'name' => 'Claudia Prueba',
@@ -20,6 +23,7 @@ class UserSeeder extends Seeder
                 'zip' => '68102',
                 'latitude' => 41.2565,
                 'longitude' => -95.9345,
+                'location' => 'Omaha',
             ],
             [
                 'name' => 'Fabiola Hernandez Test',
@@ -31,6 +35,7 @@ class UserSeeder extends Seeder
                 'zip' => '68508',
                 'latitude' => 40.8136,
                 'longitude' => -96.7026,
+                'location' => 'Lincoln',
             ],
             [
                 'name' => 'Vanessa Jovanna Prueba',
@@ -42,6 +47,7 @@ class UserSeeder extends Seeder
                 'zip' => '68847',
                 'latitude' => 40.6993,
                 'longitude' => -99.0817,
+                'location' => 'Grand Island',
             ],
             [
                 'name' => 'Alejandro Lopez',
@@ -53,6 +59,7 @@ class UserSeeder extends Seeder
                 'zip' => '68025',
                 'latitude' => 41.4350,
                 'longitude' => -96.4983,
+                'location' => 'Omaha',
             ],
             [
                 'name' => 'Ivonne Prueba',
@@ -64,6 +71,7 @@ class UserSeeder extends Seeder
                 'zip' => '68801',
                 'latitude' => 40.9252,
                 'longitude' => -98.3426,
+                'location' => 'Grand Island',
             ],
             [
                 'name' => 'Alejandra Gonzalez',
@@ -75,12 +83,17 @@ class UserSeeder extends Seeder
                 'zip' => '68701',
                 'latitude' => 42.0280,
                 'longitude' => -97.4170,
+                'location' => 'Lincoln',
             ],
         ];
 
         foreach ($clients as $data) {
+            $locationName = $data['location'];
+            unset($data['location']);
+
             $user = User::create([
                 'password' => bcrypt('12345678'),
+                'location_id' => $locations->get($locationName)?->id,
                 ...$data,
             ]);
             $user->assignRole('Client');

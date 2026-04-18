@@ -67,6 +67,9 @@ Route::middleware(['restrict.ip'])->group(function () {
 
     Route::middleware(['auth', 'permission:manage users'])->group(function () {
         Volt::route('admin/users', 'admin.users')->name('admin.users');
+    });
+
+    Route::middleware(['auth', 'permission:manage clients'])->group(function () {
         Volt::route('admin/clients', 'admin.clients.index')->name('admin.clients');
         Volt::route('admin/clients/map', 'admin.clients-map')->name('admin.clients.map');
     });
@@ -96,6 +99,7 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['restrict.ip', 'auth', 'permission:manage projects'])->group(function () {
     Volt::route('admin/projects', 'admin.projects.index')->name('admin.projects');
     Volt::route('admin/projects/kanban', 'admin.projects.kanban')->name('admin.projects.kanban');
+    Volt::route('admin/projects/calendar', 'admin.projects.calendar')->name('admin.projects.calendar');
     Volt::route('admin/projects/create', 'admin.projects.create')->name('admin.projects.create');
     Volt::route('admin/projects/{project}/edit', 'admin.projects.edit')->name('admin.projects.edit');
     Volt::route('admin/receipts', 'admin.receipts.index')->name('admin.receipts');
@@ -174,6 +178,12 @@ Route::middleware(['restrict.ip', 'auth', 'permission:manage contractors'])->gro
     Volt::route('admin/contractors', 'admin.contractors.index')->name('admin.contractors');
     Volt::route('admin/contractors/create', 'admin.contractors.create')->name('admin.contractors.create');
     Volt::route('admin/contractors/{contractor}/edit', 'admin.contractors.edit')->name('admin.contractors.edit');
+});
+
+Route::middleware(['restrict.ip', 'auth', 'permission:manage locations'])->group(function () {
+    Volt::route('admin/locations', 'admin.locations.index')->name('admin.locations');
+    Volt::route('admin/locations/create', 'admin.locations.create')->name('admin.locations.create');
+    Volt::route('admin/locations/{location}/edit', 'admin.locations.edit')->name('admin.locations.edit');
 });
 
 Route::middleware(['restrict.ip', 'auth', 'permission:manage quotes'])->group(function () {
