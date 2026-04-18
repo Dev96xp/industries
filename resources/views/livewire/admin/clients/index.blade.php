@@ -150,7 +150,8 @@ new #[Layout('components.layouts.app')] class extends Component {
         }
     }
 
-    public ?int $locationFilter = null;
+    public string $search       = '';
+    public ?int   $locationFilter = null;
 
     public function mount(): void
     {
@@ -167,6 +168,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                 ->whereHas('roles', fn ($q) => $q->where('name', 'client'))
                 ->withCount(['projects', 'quotes'])
                 ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter))
+                ->when($this->search, fn ($q) => $q->where(fn ($q) => $q
+                    ->where('name', 'like', "%{$this->search}%")
+                    ->orWhere('email', 'like', "%{$this->search}%")
+                    ->orWhere('phone', 'like', "%{$this->search}%")
+                ))
                 ->orderBy('name')
                 ->get(),
             'locations' => \App\Models\Location::where('is_active', true)->orderBy('name')->get(),
@@ -183,6 +189,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:text class="mt-1 text-zinc-500">All registered clients.</flux:text>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
+            <flux:input wire:model.live.debounce.300ms="search" size="sm" placeholder="Search clients..." icon="magnifying-glass" class="min-w-52" />
             @if($locations->isNotEmpty())
                 <flux:select wire:model.live="locationFilter" size="sm" class="min-w-40">
                     <flux:select.option value="">All Locations</flux:select.option>

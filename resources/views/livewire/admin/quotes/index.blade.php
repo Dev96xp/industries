@@ -9,6 +9,7 @@ use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public string $activeTab = 'active';
+    public string $search    = '';
 
     public function sendQuote(Quote $quote): void
     {
@@ -48,8 +49,16 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         return [
             'quotes' => $this->activeTab === 'archived'
-                ? Quote::onlyTrashed()->with(['project', 'payments', 'items'])->orderByDesc('deleted_at')->get()
-                : Quote::with(['project', 'payments', 'items'])->orderByDesc('created_at')->get(),
+                ? Quote::onlyTrashed()->with(['project', 'payments', 'items'])
+                    ->when($this->search, fn ($q) => $q
+                        ->where('number', 'like', "%{$this->search}%")
+                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$this->search}%")))
+                    ->orderByDesc('deleted_at')->get()
+                : Quote::with(['project', 'payments', 'items'])
+                    ->when($this->search, fn ($q) => $q
+                        ->where('number', 'like', "%{$this->search}%")
+                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$this->search}%")))
+                    ->orderByDesc('created_at')->get(),
         ];
     }
 }; ?>
@@ -62,9 +71,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:heading size="xl">Quotes</flux:heading>
             <flux:text class="mt-1 text-zinc-500">Manage project quotes and estimates.</flux:text>
         </div>
-        <flux:button href="{{ route('admin.quotes.create') }}" variant="primary" icon="plus" wire:navigate>
-            New Quote
-        </flux:button>
+        <div class="flex items-center gap-3">
+            <flux:input wire:model.live.debounce.300ms="search" size="sm" placeholder="Search by client..." icon="magnifying-glass" class="min-w-52" />
+            <flux:button href="{{ route('admin.quotes.create') }}" variant="primary" icon="plus" wire:navigate>
+                New Quote
+            </flux:button>
+        </div>
     </div>
 
     {{-- Flash messages --}}
