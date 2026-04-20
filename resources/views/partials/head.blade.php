@@ -13,3 +13,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 @endif
+
+@if(request()->routeIs('admin.clients'))
+    <script src="/js/qz-tray.js"></script>
+    <script src="/js/label-printer.js"></script>
+@endif

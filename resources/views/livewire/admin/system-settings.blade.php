@@ -95,6 +95,60 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
+    {{-- Printers --}}
+    <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+        <h3 class="mb-4 text-sm font-semibold text-zinc-700 dark:text-zinc-200">Printers</h3>
+        <flux:text class="mb-5 text-sm text-zinc-500">
+            Label printers configured for this system. Each printer requires QZ Tray running on the local computer.
+        </flux:text>
+
+        {{-- PM-241-BT --}}
+        <div x-data="{ open: false }" class="rounded-xl border border-zinc-200 dark:border-zinc-700">
+            <button type="button" @click="open = !open"
+                class="flex w-full items-center justify-between px-5 py-4 text-left">
+                <div class="flex items-center gap-3">
+                    <flux:icon.printer class="size-5 text-zinc-400" />
+                    <div>
+                        <p class="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Zhuhai PM-241-BT</p>
+                        <p class="text-xs text-zinc-400">Bluetooth label printer — 104mm</p>
+                    </div>
+                </div>
+                <flux:badge color="green" size="sm">Active</flux:badge>
+            </button>
+
+            <div x-show="open" x-collapse class="border-t border-zinc-100 px-5 py-4 dark:border-zinc-800">
+                <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-400">Setup instructions per computer</p>
+                <ol class="flex flex-col gap-2 text-sm text-zinc-600 dark:text-zinc-300">
+                    <li class="flex items-start gap-2">
+                        <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 dark:bg-blue-900/30">1</span>
+                        Download and install <strong>QZ Tray</strong> from <span class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 rounded">qz.io</span> — free desktop agent for browser printing.
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 dark:bg-blue-900/30">2</span>
+                        Turn on the PM-241-BT and pair it via <strong>Windows Bluetooth Settings → Add device</strong>.
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 dark:bg-blue-900/30">3</span>
+                        Open QZ Tray — it should appear as an icon in the Windows taskbar (bottom right).
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 dark:bg-blue-900/30">4</span>
+                        Open <strong>Chrome</strong> and go to Clients — use the 🖨️ button on any client row to print a label.
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600 dark:bg-blue-900/30">5</span>
+                        On first use, QZ Tray will ask for permission — click <strong>Allow</strong> and check <strong>"Remember this decision"</strong>.
+                    </li>
+                </ol>
+                <div class="mt-4 rounded-lg bg-zinc-50 dark:bg-zinc-800 px-4 py-3">
+                    <p class="text-xs text-zinc-500"><strong>Label content:</strong> Client name (large) → Phone → Address</p>
+                    <p class="text-xs text-zinc-500 mt-1"><strong>Label size:</strong> 104mm wide</p>
+                    <p class="text-xs text-zinc-500 mt-1"><strong>Connection:</strong> Bluetooth (BTH001)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- IP Restriction Settings --}}
     <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
         <div class="mb-4 flex items-center justify-between">

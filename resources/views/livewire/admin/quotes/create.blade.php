@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Product;
+use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\User;
@@ -9,6 +10,7 @@ use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public ?int $user_id         = null;
+    public ?int $project_id      = null;
     public string $quote_date    = '';
     public string $expiration_date = '';
     public string $tax_percentage  = '0';
@@ -25,6 +27,11 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->quote_date = now()->format('Y-m-d');
         $this->user_id    = request()->integer('client') ?: null;
         $this->addItem();
+    }
+
+    public function updatedUserId(): void
+    {
+        $this->project_id = null;
     }
 
     public function addItem(): void
@@ -71,8 +78,11 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $clients  = User::role('client')->orderBy('name')->get(['id', 'name', 'email', 'phone']);
         $products = Product::with('category')->where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit_price', 'unit', 'category_id']);
+        $projects = $this->user_id
+            ? Project::where('client_user_id', $this->user_id)->orderBy('name')->get(['id', 'name', 'number'])
+            : collect();
 
-        return compact('client', 'clients', 'subtotal', 'taxAmount', 'total', 'products');
+        return compact('client', 'clients', 'subtotal', 'taxAmount', 'total', 'products', 'projects');
     }
 
     public function save(): void
@@ -84,6 +94,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'tax_percentage'  => ['numeric', 'min:0', 'max:100'],
             'discount'        => ['numeric', 'min:0'],
             'status'          => ['required', 'in:draft,sent,accepted,rejected'],
+            'project_id'      => ['nullable', 'exists:projects,id'],
             'items'                => ['required', 'array', 'min:1'],
             'items.*.product_id'  => ['required', 'exists:products,id'],
             'items.*.description' => ['required', 'string', 'max:255'],
@@ -107,6 +118,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'notes'           => $this->notes ?: null,
             'terms'           => $this->terms ?: null,
             'status'          => $this->status,
+            'project_id'      => $this->project_id,
         ]);
 
         foreach ($this->items as $i => $item) {
@@ -159,6 +171,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                         class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">
                         Change
                     </button>
+                </div>
+
+                {{-- Project dropdown --}}
+                <div class="mt-4">
+                    @if($projects->isNotEmpty())
+                        <flux:select wire:model="project_id" label="Link to Project (optional)">
+                            <flux:select.option value="">— No project —</flux:select.option>
+                            @foreach($projects as $proj)
+                                <flux:select.option value="{{ $proj->id }}">{{ $proj->number }} — {{ $proj->name }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    @else
+                        <p class="text-sm text-zinc-400 italic">No projects for this client.</p>
+                    @endif
                 </div>
             @else
                 <flux:select wire:model.live="user_id" label="Select Client" placeholder="Choose a registered client...">

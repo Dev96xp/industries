@@ -18,6 +18,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $notes           = '';
     public string $terms           = '';
     public string $status          = 'draft';
+    public ?int   $projectId       = null;
 
     /** @var array<int, array{id: int|null, product_id: int|null, description: string, quantity: string, unit_price: string, unit: string}> */
     public array $items = [];
@@ -42,6 +43,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->notes           = $quote->notes ?? '';
         $this->terms           = $quote->terms ?? '';
         $this->status          = $quote->status;
+        $this->projectId       = $quote->project_id;
 
         $this->items = $quote->items->map(fn ($item) => [
             'id'          => $item->id,
@@ -125,7 +127,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             $this->stripeAmount = $balanceDue > 0 ? (string) $balanceDue : '';
         }
 
-        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid');
+        $projects = Project::where('client_user_id', $this->quote->user_id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'number']);
+
+        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid', 'projects');
     }
 
     public function save(): void
@@ -142,6 +148,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'tax_percentage'  => ['numeric', 'min:0', 'max:100'],
             'discount'        => ['numeric', 'min:0'],
             'status'          => ['required', 'in:draft,sent,accepted,rejected'],
+            'projectId'       => ['nullable', 'exists:projects,id'],
             'items'                => ['required', 'array', 'min:1'],
             'items.*.product_id'  => ['required', 'exists:products,id'],
             'items.*.description' => ['required', 'string', 'max:255'],
@@ -158,6 +165,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'notes'           => $this->notes ?: null,
             'terms'           => $this->terms ?: null,
             'status'          => $this->status,
+            'project_id'      => $this->projectId,
         ]);
 
         foreach ($this->items as $i => $item) {
@@ -393,7 +401,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         {{-- Quote details --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Quote Details</h3>
-            <div class="grid gap-4 sm:grid-cols-3">
+            <div class="grid gap-4 sm:grid-cols-4">
                 <flux:input wire:model="quote_date" label="Quote Date" type="date" required />
                 <flux:input wire:model="expiration_date" label="Expiration Date" type="date" />
                 <flux:select wire:model="status" label="Status">
@@ -402,6 +410,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <flux:select.option value="accepted">Accepted</flux:select.option>
                     <flux:select.option value="rejected">Rejected</flux:select.option>
                 </flux:select>
+                @if($projects->isNotEmpty())
+                    <flux:select wire:model="projectId" label="Project">
+                        <flux:select.option value="">— No project —</flux:select.option>
+                        @foreach($projects as $proj)
+                            <flux:select.option value="{{ $proj->id }}">{{ $proj->number }} — {{ $proj->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                @else
+                    <flux:field>
+                        <flux:label>Project</flux:label>
+                        <p class="text-sm text-zinc-400 italic mt-2">No projects for this client.</p>
+                    </flux:field>
+                @endif
             </div>
         </div>
 

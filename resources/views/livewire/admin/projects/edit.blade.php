@@ -593,6 +593,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'contractors'  => Contractor::where('is_active', true)->orderBy('company_name')->get(),
             'totalSpent'   => $this->project->expenses()->sum('amount'),
             'totalIncome'  => $this->project->incomes()->sum('amount'),
+            'quotes'       => $this->project->quotes()->with('payments')->orderByDesc('created_at')->get(),
         ];
     }
 }; ?>
@@ -668,6 +669,45 @@ new #[Layout('components.layouts.app')] class extends Component {
                     @endif
                 </div>
             </div>
+        </div>
+
+        {{-- Quotes --}}
+        <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Quotes</h3>
+                <flux:badge color="zinc" size="sm">{{ $quotes->count() }}</flux:badge>
+            </div>
+            @if($quotes->isEmpty())
+                <p class="text-sm text-zinc-400">No quotes linked to this project.</p>
+            @else
+                <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    @foreach($quotes as $quote)
+                        @php
+                            $paid = $quote->payments->where('status', 'completed')->sum('amount');
+                            $balance = $quote->total - $paid;
+                        @endphp
+                        <div class="flex items-center justify-between py-3">
+                            <div class="flex items-center gap-3">
+                                <a href="{{ route('admin.quotes.edit', $quote) }}" wire:navigate
+                                    class="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400">
+                                    {{ $quote->number }}
+                                </a>
+                                <flux:badge size="sm" color="{{ match($quote->status) { 'accepted' => 'green', 'sent' => 'blue', 'rejected' => 'red', default => 'zinc' } }}">
+                                    {{ ucfirst($quote->status) }}
+                                </flux:badge>
+                            </div>
+                            <div class="text-right text-xs text-zinc-500">
+                                <p class="font-medium text-zinc-800 dark:text-zinc-200">${{ number_format($quote->total, 2) }}</p>
+                                @if($balance > 0)
+                                    <p class="text-red-500">Balance: ${{ number_format($balance, 2) }}</p>
+                                @else
+                                    <p class="text-green-500">Paid</p>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
 
         {{-- GPS / Worksite Location --}}

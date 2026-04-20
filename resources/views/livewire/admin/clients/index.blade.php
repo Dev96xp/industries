@@ -332,6 +332,10 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </td>
                             <td class="px-6 py-4 text-right" x-on:click.stop>
                                 <div class="flex items-center justify-end gap-2">
+                                    <flux:button
+                                        variant="ghost" size="sm" icon="printer"
+                                        onclick="printClientLabel('{{ addslashes($client->name) }}','{{ addslashes($client->address ?? '') }}','{{ addslashes($client->city ?? '') }}','{{ addslashes($client->state ?? '') }}','{{ addslashes($client->zip ?? '') }}','{{ addslashes($client->phone ?? '') }}')"
+                                    />
                                     <flux:button wire:click="openEdit({{ $client->id }})" variant="ghost" size="sm" icon="pencil" />
                                     @can('manage quotes')
                                         <flux:button
