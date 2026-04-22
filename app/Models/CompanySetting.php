@@ -26,6 +26,12 @@ class CompanySetting extends Model
         'allowed_ips',
         'latitude',
         'longitude',
+        'backup_enabled',
+        'backup_frequency',
+        'backup_day_of_month',
+        'backup_day',
+        'backup_time',
+        'backup_email',
     ];
 
     protected function casts(): array
@@ -33,6 +39,7 @@ class CompanySetting extends Model
         return [
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'backup_enabled' => 'boolean',
         ];
     }
 

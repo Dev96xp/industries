@@ -29,6 +29,12 @@ return new class extends Migration
             $table->unsignedInteger('livewire_max_payload_mb')->default(8);
             $table->boolean('ip_restriction_enabled')->default(false);
             $table->text('allowed_ips')->nullable();
+            $table->boolean('backup_enabled')->default(false);
+            $table->string('backup_frequency')->default('weekly');
+            $table->unsignedTinyInteger('backup_day_of_month')->default(1);
+            $table->string('backup_day')->default('sunday');
+            $table->string('backup_time')->default('02:00');
+            $table->string('backup_email')->nullable();
             $table->timestamps();
         });
     }

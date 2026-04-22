@@ -11,13 +11,14 @@
     "require": {
         "php": "^8.2",
         "anthropic-ai/sdk": "^0.14.0",
+        "fakerphp/faker": "^1.23",
         "intervention/image": "^3.11",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
         "livewire/flux": "^2.0",
         "livewire/volt": "^1.6.7",
+        "spatie/laravel-backup": "^9.3",
         "spatie/laravel-permission": "^6.25",
-        "fakerphp/faker": "^1.23",
         "stripe/stripe-php": "^20.0"
     },
     "require-dev": {

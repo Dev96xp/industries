@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Models\CompanySetting;
 use App\Models\Photo;
@@ -76,6 +77,7 @@ Route::middleware(['restrict.ip'])->group(function () {
 
     Route::middleware(['auth', 'role:superadmin'])->group(function () {
         Volt::route('admin/system-settings', 'admin.system-settings')->name('admin.system-settings');
+        Route::get('admin/backup/download', [BackupController::class, 'download'])->name('admin.backup.download');
     });
 });
 
