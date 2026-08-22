@@ -21,7 +21,7 @@
                     <div class="flex size-8 items-center justify-center rounded-lg bg-white">
                         <span class="text-xs font-bold tracking-tight" style="color: var(--color-charcoal)">NI</span>
                     </div>
-                    <span class="text-sm font-bold text-white">{{ $company->company_name }}</span>
+                    <span class="text-[1.3125rem] font-bold text-white">{{ $company->company_name }}</span>
                 </a>
 
                 {{-- Avatar with initials --}}
