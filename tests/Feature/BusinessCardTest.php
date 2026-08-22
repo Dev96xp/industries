@@ -9,7 +9,7 @@ test('the business card page loads publicly with the contact details', function 
 
     $response->assertStatus(200);
     $response->assertSee('Ricardo Ramirez');
-    $response->assertSee('Director de Proyectos');
+    $response->assertSee('Project Director');
     $response->assertSee($company->company_name);
     $response->assertSee('770-412-2535');
 });
@@ -29,7 +29,7 @@ test('the vcard download has the correct headers and fields', function () {
         ->toContain('BEGIN:VCARD')
         ->toContain('FN:Ricardo Ramirez')
         ->toContain('ORG:'.$company->company_name)
-        ->toContain('TITLE:Director de Proyectos')
+        ->toContain('TITLE:Project Director')
         ->toContain('TEL;TYPE=WORK,VOICE:+17704122535')
         ->toContain('END:VCARD');
 });

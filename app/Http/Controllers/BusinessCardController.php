@@ -10,7 +10,7 @@ class BusinessCardController extends Controller
 {
     private const NAME = 'Ricardo Ramirez';
 
-    private const TITLE = 'Director de Proyectos';
+    private const TITLE = 'Project Director';
 
     private const PHONE = '770-412-2535';
 

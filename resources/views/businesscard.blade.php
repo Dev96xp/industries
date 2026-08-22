@@ -44,7 +44,7 @@
                         href="tel:{{ $phoneDigits }}"
                         class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-700"
                     >
-                        📞 Llamar
+                        📞 Call
                     </a>
                     <a
                         href="https://wa.me/{{ $phoneDigits }}"
@@ -58,7 +58,7 @@
                         href="{{ route('businesscard.vcard') }}"
                         class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-600 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-zinc-400 hover:bg-white/5"
                     >
-                        💾 Guardar contacto
+                        💾 Save Contact
                     </a>
                 </div>
             </div>
