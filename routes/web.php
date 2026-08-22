@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\BusinessCardController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Models\CompanySetting;
 use App\Models\Photo;
@@ -34,6 +35,9 @@ Route::get('/quotes/{quote}/approve', function (Quote $quote) {
         'alreadyApproved' => $alreadyApproved,
     ]);
 })->name('quotes.approve');
+
+Route::get('/businesscard', [BusinessCardController::class, 'show'])->name('businesscard.show');
+Route::get('/businesscard/vcard', [BusinessCardController::class, 'vcard'])->name('businesscard.vcard');
 
 Route::get('/', function () {
     $company = CompanySetting::current();
