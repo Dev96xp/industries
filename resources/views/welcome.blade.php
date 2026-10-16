@@ -244,7 +244,7 @@
                 {{-- Stats bar --}}
                 <div class="mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/5 sm:mt-20 sm:grid-cols-4">
                     @foreach([
-                        ['num' => '17', 'label' => 'Homes Built'],
+                        ['num' => 'insured', 'label' => ''],
                         ['num' => '100%', 'label' => 'Client Satisfaction'],
                         ['num' => 'On Time', 'label' => 'Project Delivery'],
                         ['num' => 'Licensed', 'label' => '& Insured'],
