@@ -1,16 +1,20 @@
 <?php
 
+use App\Mail\InvoiceSent;
+use App\Models\CompanySetting;
 use App\Models\Product;
 use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\QuotePayment;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
     public Quote $quote;
 
+    public string $title           = '';
     public string $quote_date      = '';
     public string $expiration_date = '';
     public string $tax_percentage  = '0';
@@ -33,9 +37,14 @@ new #[Layout('components.layouts.app')] class extends Component {
     // Stripe charge amount
     public string $stripeAmount = '';
 
+    // Invoice modal
+    public bool   $showInvoiceModal = false;
+    public string $invoiceDueDate   = '';
+
     public function mount(Quote $quote): void
     {
         $this->quote           = $quote;
+        $this->title           = $quote->title ?? '';
         $this->quote_date      = $quote->quote_date->format('Y-m-d');
         $this->expiration_date = $quote->expiration_date?->format('Y-m-d') ?? '';
         $this->tax_percentage  = (string) $quote->tax_percentage;
@@ -64,9 +73,14 @@ new #[Layout('components.layouts.app')] class extends Component {
         return $paid > 0 && $paid >= $this->quote->total;
     }
 
+    private function isLocked(): bool
+    {
+        return $this->quote->isInvoice() || $this->isFullyPaid();
+    }
+
     public function addItem(): void
     {
-        if ($this->isFullyPaid()) {
+        if ($this->isLocked()) {
             return;
         }
 
@@ -95,7 +109,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function removeItem(int $index): void
     {
-        if ($this->isFullyPaid()) {
+        if ($this->isLocked()) {
             return;
         }
 
@@ -131,7 +145,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             ->orderBy('name')
             ->get(['id', 'name', 'number']);
 
-        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid', 'projects');
+        $isInvoice = $this->quote->isInvoice();
+        $locked    = $fullyPaid || $isInvoice;
+        $canRevert = $isInvoice && $this->quote->payments->isEmpty();
+
+        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid', 'projects', 'isInvoice', 'locked', 'canRevert');
     }
 
     public function save(): void
@@ -142,7 +160,14 @@ new #[Layout('components.layouts.app')] class extends Component {
             return;
         }
 
+        if ($this->quote->isInvoice()) {
+            session()->flash('error', 'This invoice cannot be modified. Revert it to a quote first.');
+
+            return;
+        }
+
         $this->validate([
+            'title'           => ['required', 'string', 'max:255'],
             'quote_date'      => ['required', 'date'],
             'expiration_date' => ['nullable', 'date'],
             'tax_percentage'  => ['numeric', 'min:0', 'max:100'],
@@ -158,6 +183,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         ]);
 
         $this->quote->update([
+            'title'           => $this->title,
             'quote_date'      => $this->quote_date,
             'expiration_date' => $this->expiration_date ?: null,
             'tax_percentage'  => $this->tax_percentage,
@@ -268,44 +294,83 @@ new #[Layout('components.layouts.app')] class extends Component {
             'stripeAmount.min'      => 'Minimum charge is $0.50.',
         ]);
 
-        $amount = round((float) $this->stripeAmount, 2);
-
         try {
-            $stripe = new \Stripe\StripeClient(config('services.stripe.secret'));
-
-            $paymentLink = $stripe->paymentLinks->create([
-                'line_items' => [[
-                    'price_data' => [
-                        'currency'     => 'usd',
-                        'product_data' => [
-                            'name' => 'Quote ' . $this->quote->number . ' — ' . $this->quote->client_name,
-                        ],
-                        'unit_amount' => (int) round($amount * 100),
-                    ],
-                    'quantity' => 1,
-                ]],
-                'metadata' => [
-                    'quote_id'     => $this->quote->id,
-                    'quote_number' => $this->quote->number,
-                ],
-            ]);
-
-            $this->quote->payments()->create([
-                'amount'              => $amount,
-                'paid_at'             => now()->format('Y-m-d'),
-                'method'              => 'card',
-                'status'              => 'pending',
-                'notes'               => 'Stripe Payment Link — awaiting payment',
-                'stripe_payment_link' => $paymentLink->url,
-                'stripe_session_id'   => $paymentLink->id,
-            ]);
+            $payment = $this->quote->createStripePaymentLink((float) $this->stripeAmount);
 
             $this->stripeAmount = '';
             $this->quote->refresh();
-            session()->flash('stripe_link', $paymentLink->url);
+            session()->flash('stripe_link', $payment->stripe_payment_link);
         } catch (\Throwable $e) {
             session()->flash('error', 'Stripe error: ' . $e->getMessage());
         }
+    }
+
+    public function openInvoiceModal(): void
+    {
+        if (! $this->quote->canBeInvoiced()) {
+            session()->flash('error', 'Only accepted quotes can be converted to an invoice.');
+
+            return;
+        }
+
+        $this->invoiceDueDate   = now()->addDays(15)->format('Y-m-d');
+        $this->showInvoiceModal = true;
+    }
+
+    public function convertToInvoice(): void
+    {
+        if (! $this->quote->canBeInvoiced()) {
+            session()->flash('error', 'Only accepted quotes can be converted to an invoice.');
+
+            return;
+        }
+
+        $this->validate([
+            'invoiceDueDate' => ['required', 'date', 'after_or_equal:today'],
+        ], [
+            'invoiceDueDate.required'       => 'Choose a due date for the invoice.',
+            'invoiceDueDate.after_or_equal' => 'The due date cannot be in the past.',
+        ]);
+
+        $this->quote->convertToInvoice($this->invoiceDueDate);
+
+        $this->showInvoiceModal = false;
+        session()->flash('success', "Quote {$this->quote->number} converted to invoice {$this->quote->invoice_number}.");
+    }
+
+    public function revertToQuote(): void
+    {
+        if (! $this->quote->canRevertToQuote()) {
+            session()->flash('error', 'This invoice has payments and cannot be reverted to a quote.');
+
+            return;
+        }
+
+        $invoiceNumber = $this->quote->invoice_number;
+        $this->quote->revertToQuote();
+
+        session()->flash('success', "Invoice {$invoiceNumber} reverted to quote {$this->quote->number}.");
+    }
+
+    public function sendInvoice(): void
+    {
+        if (! $this->quote->isInvoice()) {
+            return;
+        }
+
+        if (! $this->quote->client_email) {
+            session()->flash('error', 'This invoice has no client email.');
+
+            return;
+        }
+
+        $payUrl = $this->quote->paymentLinkForBalance();
+
+        Mail::to($this->quote->client_email)
+            ->send(new InvoiceSent($this->quote, CompanySetting::current(), $payUrl));
+
+        $this->quote->refresh();
+        session()->flash('success', "Invoice {$this->quote->invoice_number} sent to {$this->quote->client_email}.");
     }
 }; ?>
 
@@ -316,15 +381,44 @@ new #[Layout('components.layouts.app')] class extends Component {
         <div class="flex items-center gap-3">
             <flux:button href="{{ route('admin.quotes') }}" variant="ghost" icon="arrow-left" size="sm" wire:navigate />
             <div>
-                <flux:heading size="xl">{{ $quote->number }}</flux:heading>
-                <flux:text class="mt-1 text-zinc-500">{{ $quote->client_name }}</flux:text>
+                <div class="flex items-center gap-2">
+                    <flux:heading size="xl">{{ $quote->display_number }}</flux:heading>
+                    @if($isInvoice)
+                        <flux:badge color="purple" size="sm">Invoice</flux:badge>
+                    @endif
+                </div>
+                <flux:text class="mt-1 text-zinc-500">
+                    {{ $quote->client_name }}
+                    @if($isInvoice)
+                        &nbsp;·&nbsp; Quote {{ $quote->number }} &nbsp;·&nbsp; Due {{ $quote->invoice_due_date?->format('M d, Y') }}
+                    @endif
+                </flux:text>
             </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center justify-end gap-2">
             <a href="{{ route('admin.quotes.report', $quote) }}" target="_blank"
                 class="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800">
                 <flux:icon.printer class="size-4" /> Print
             </a>
+            @if($quote->canBeInvoiced())
+                <flux:button wire:click="openInvoiceModal" icon="document-currency-dollar">
+                    Convert to Invoice
+                </flux:button>
+            @endif
+            @if($isInvoice)
+                <flux:button wire:click="sendInvoice"
+                    wire:confirm="Send invoice {{ $quote->invoice_number }} to {{ $quote->client_email ?: 'client' }}?"
+                    icon="envelope" wire:loading.attr="disabled" wire:target="sendInvoice">
+                    Send Invoice
+                </flux:button>
+                @if($canRevert)
+                    <flux:button wire:click="revertToQuote"
+                        wire:confirm="Revert invoice {{ $quote->invoice_number }} back to quote {{ $quote->number }}?"
+                        variant="ghost" icon="arrow-uturn-left">
+                        Revert to Quote
+                    </flux:button>
+                @endif
+            @endif
             @if(! $quote->project_id)
                 <flux:button wire:click="convertToProject"
                     wire:confirm="Convert this quote to a project? The quote will be marked as Accepted."
@@ -349,6 +443,20 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <p class="text-sm text-green-700 dark:text-green-400">This quote has been paid in full and can no longer be modified.</p>
             </div>
         </div>
+    @elseif($isInvoice)
+        <div class="flex items-center gap-3 rounded-2xl border border-purple-200 bg-purple-50 px-5 py-4 dark:border-purple-800 dark:bg-purple-900/20 max-w-6xl">
+            <flux:icon.lock-closed class="size-5 shrink-0 text-purple-600 dark:text-purple-400" />
+            <div>
+                <p class="font-semibold text-purple-800 dark:text-purple-300">Invoice {{ $quote->invoice_number }} — items locked</p>
+                <p class="text-sm text-purple-700 dark:text-purple-400">
+                    @if($canRevert)
+                        Line items and prices can no longer be changed. Use "Revert to Quote" if you need to make corrections.
+                    @else
+                        Line items and prices can no longer be changed. This invoice has payments, so it cannot be reverted.
+                    @endif
+                </p>
+            </div>
+        </div>
     @endif
 
     {{-- Success / Error --}}
@@ -371,7 +479,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         </flux:callout>
     @endif
 
-    <form wire:submit="save" class="flex flex-col gap-6 max-w-6xl {{ $fullyPaid ? 'pointer-events-none opacity-60 select-none' : '' }}">
+    <form wire:submit="save" class="flex flex-col gap-6 max-w-6xl {{ $locked ? 'pointer-events-none opacity-60 select-none' : '' }}">
 
         {{-- Client card (read-only) --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
@@ -401,6 +509,9 @@ new #[Layout('components.layouts.app')] class extends Component {
         {{-- Quote details --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Quote Details</h3>
+            <div class="mb-4">
+                <flux:input wire:model="title" label="Job Name" placeholder="e.g. Kitchen remodel, Roofing, Plumbing..." required />
+            </div>
             <div class="grid gap-4 sm:grid-cols-4">
                 <flux:input wire:model="quote_date" label="Quote Date" type="date" required />
                 <flux:input wire:model="expiration_date" label="Expiration Date" type="date" />
@@ -612,7 +723,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             </div>
         </div>
 
-        @if(! $fullyPaid)
+        @if(! $locked)
             <div class="flex gap-3">
                 <flux:button type="submit" variant="primary">Save Changes</flux:button>
             </div>
@@ -658,7 +769,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         {{-- Payment summary badges --}}
         <div class="mb-5 flex flex-wrap gap-4">
             <div class="flex flex-col items-center rounded-xl border border-zinc-100 bg-zinc-50 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-800/50">
-                <span class="text-xs text-zinc-400 uppercase tracking-wider">Quote Total</span>
+                <span class="text-xs text-zinc-400 uppercase tracking-wider">{{ $quote->document_label }} Total</span>
                 <span class="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
                     ${{ number_format($quote->fresh()->total, 2) }}
                 </span>
@@ -800,6 +911,29 @@ new #[Layout('components.layouts.app')] class extends Component {
             <div class="flex justify-end gap-3 pt-1">
                 <flux:button wire:click="$set('showPaymentModal', false)" variant="ghost">Cancel</flux:button>
                 <flux:button wire:click="recordPayment" variant="primary">Save Payment</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    {{-- Convert to Invoice Modal --}}
+    <flux:modal wire:model="showInvoiceModal" name="convert-to-invoice" class="w-full max-w-md">
+        <div class="p-6 flex flex-col gap-5">
+            <div>
+                <flux:heading size="lg">Convert to Invoice</flux:heading>
+                <flux:text class="mt-1">
+                    Quote {{ $quote->number }} will get the next invoice number and its line items will be locked.
+                </flux:text>
+            </div>
+
+            <flux:field>
+                <flux:label>Due Date <flux:badge size="sm" color="red" class="ml-1">Required</flux:badge></flux:label>
+                <flux:input wire:model="invoiceDueDate" type="date" />
+                <flux:error name="invoiceDueDate" />
+            </flux:field>
+
+            <div class="flex justify-end gap-3 pt-1">
+                <flux:button wire:click="$set('showInvoiceModal', false)" variant="ghost">Cancel</flux:button>
+                <flux:button wire:click="convertToInvoice" variant="primary">Convert to Invoice</flux:button>
             </div>
         </div>
     </flux:modal>

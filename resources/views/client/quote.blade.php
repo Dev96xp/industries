@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quote {{ $quote->number }} — {{ $quote->client_name }}</title>
+    <title>{{ $quote->document_label }} {{ $quote->display_number }} — {{ $quote->client_name }}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -26,6 +26,7 @@
         .report-title { text-align: right; }
         .report-title .label  { font-size: 22px; font-weight: 700; color: #1e3a5f; }
         .report-title .number { font-size: 14px; color: #555; margin-top: 2px; font-family: monospace; }
+        .report-title .job-title { font-size: 13px; color: #1a1a1a; font-weight: 600; margin-top: 4px; }
         .meta-section { display: flex; justify-content: space-between; gap: 40px; margin-bottom: 28px; }
         .meta-block h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 8px; }
         .meta-block p  { font-size: 13px; color: #1a1a1a; line-height: 1.6; }
@@ -35,6 +36,13 @@
         .status-sent     { background: #eff6ff; color: #2563eb; }
         .status-accepted { background: #f0fdf4; color: #16a34a; }
         .status-rejected { background: #fef2f2; color: #dc2626; }
+        .status-paid     { background: #f0fdf4; color: #16a34a; }
+        .status-partial  { background: #fffbeb; color: #d97706; }
+        .status-unpaid   { background: #fef2f2; color: #dc2626; }
+        .report-title .reference { font-size: 11px; color: #888; margin-top: 2px; }
+        .totals-table tr.balance-row td { font-size: 14px; font-weight: 700; color: #dc2626; }
+        .btn-pay { background: #16a34a; color: #fff; }
+        .btn-pay:hover { background: #15803d; }
         .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #1e3a5f; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 0; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
         thead th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; background: #f8fafc; }
@@ -79,6 +87,9 @@
     <a href="{{ route('home') }}" class="btn btn-back">← Back to Website</a>
     <a href="{{ route('client.account') }}" class="btn btn-back">My Account</a>
     <button class="btn btn-print" onclick="window.print()">🖨 Print</button>
+    @if($payUrl ?? null)
+        <a href="{{ $payUrl }}" target="_blank" class="btn btn-pay">💳 Pay Now — ${{ number_format($quote->balance_due, 2) }}</a>
+    @endif
 </div>
 
 {{-- Header --}}
@@ -89,8 +100,14 @@
         <div class="company-sub">Construction Group</div>
     </div>
     <div class="report-title">
-        <div class="label">QUOTE</div>
-        <div class="number">{{ $quote->number }}</div>
+        <div class="label">{{ strtoupper($quote->document_label) }}</div>
+        <div class="number">{{ $quote->display_number }}</div>
+        @if($quote->isInvoice())
+            <div class="reference">Ref. Quote {{ $quote->number }}</div>
+        @endif
+        @if($quote->title)
+            <div class="job-title">{{ $quote->title }}</div>
+        @endif
     </div>
 </div>
 
@@ -103,15 +120,25 @@
         @if($quote->client_phone) <p>{{ $quote->client_phone }}</p> @endif
     </div>
     <div class="meta-block" style="text-align:right">
-        <h4>Quote Details</h4>
-        <p class="label">Date</p>
-        <p style="margin-bottom:8px">{{ $quote->quote_date->format('F d, Y') }}</p>
-        @if($quote->expiration_date)
-            <p class="label">Expires</p>
-            <p style="margin-bottom:8px">{{ $quote->expiration_date->format('F d, Y') }}</p>
+        @if($quote->isInvoice())
+            <h4>Invoice Details</h4>
+            <p class="label">Invoice Date</p>
+            <p style="margin-bottom:8px">{{ $quote->invoice_date->format('F d, Y') }}</p>
+            <p class="label">Due Date</p>
+            <p style="margin-bottom:8px">{{ $quote->invoice_due_date->format('F d, Y') }}</p>
+            <p class="label">Status</p>
+            <span class="status-badge status-{{ $quote->payment_status }}">{{ ucfirst($quote->payment_status) }}</span>
+        @else
+            <h4>Quote Details</h4>
+            <p class="label">Date</p>
+            <p style="margin-bottom:8px">{{ $quote->quote_date->format('F d, Y') }}</p>
+            @if($quote->expiration_date)
+                <p class="label">Expires</p>
+                <p style="margin-bottom:8px">{{ $quote->expiration_date->format('F d, Y') }}</p>
+            @endif
+            <p class="label">Status</p>
+            <span class="status-badge status-{{ $quote->status }}">{{ ucfirst($quote->status) }}</span>
         @endif
-        <p class="label">Status</p>
-        <span class="status-badge status-{{ $quote->status }}">{{ ucfirst($quote->status) }}</span>
     </div>
 </div>
 
@@ -161,6 +188,16 @@
             <td>Total</td>
             <td>${{ number_format($quote->total, 2) }}</td>
         </tr>
+        @if($quote->isInvoice())
+            <tr class="separator">
+                <td class="text-muted">Amount Paid</td>
+                <td>-${{ number_format($quote->amount_paid, 2) }}</td>
+            </tr>
+            <tr class="balance-row">
+                <td>Balance Due</td>
+                <td>${{ number_format(max($quote->balance_due, 0), 2) }}</td>
+            </tr>
+        @endif
     </table>
 </div>
 
@@ -180,7 +217,7 @@
 
 <div class="report-footer">
     <span>{{ $company->company_name }} — Thank you for your business.</span>
-    <span>{{ $quote->number }} · {{ now()->format('M d, Y') }}</span>
+    <span>{{ $quote->display_number }} · {{ now()->format('M d, Y') }}</span>
 </div>
 
 </body>

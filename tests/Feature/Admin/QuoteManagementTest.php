@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Product;
 use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
@@ -43,20 +44,24 @@ it('admin can create a quote linked to a registered client', function () {
 
     $client = User::factory()->create(['name' => 'Jane Doe', 'email' => 'jane@example.com']);
     $client->assignRole('client');
+    $product = Product::factory()->create();
 
     Volt::actingAs($admin)
         ->test('admin.quotes.create')
         ->set('user_id', $client->id)
+        ->set('title', 'Kitchen remodel')
         ->set('quote_date', now()->format('Y-m-d'))
         ->set('items', [
-            ['description' => 'Labor', 'quantity' => '10', 'unit_price' => '150'],
+            ['product_id' => $product->id, 'description' => 'Labor', 'quantity' => '10', 'unit_price' => '150'],
         ])
-        ->call('save');
+        ->call('save')
+        ->assertHasNoErrors();
 
     $quote = Quote::where('user_id', $client->id)->first();
 
     expect($quote)->not->toBeNull()
         ->and($quote->number)->toStartWith('Q-')
+        ->and($quote->title)->toBe('Kitchen remodel')
         ->and($quote->client_name)->toBe('Jane Doe')
         ->and($quote->items)->toHaveCount(1);
 });
@@ -73,6 +78,35 @@ it('requires a registered client to create a quote', function () {
         ])
         ->call('save')
         ->assertHasErrors(['user_id']);
+});
+
+it('requires a job name to create a quote', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage quotes');
+
+    $client = User::factory()->create();
+    $client->assignRole('client');
+
+    Volt::actingAs($admin)
+        ->test('admin.quotes.create')
+        ->set('user_id', $client->id)
+        ->set('title', '')
+        ->call('save')
+        ->assertHasErrors(['title' => 'required']);
+});
+
+it('can search quotes by job name', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage quotes');
+
+    Quote::factory()->create(['number' => 'Q-0101', 'title' => 'Kitchen remodel']);
+    Quote::factory()->create(['number' => 'Q-0102', 'title' => 'Roofing']);
+
+    Volt::actingAs($admin)
+        ->test('admin.quotes.index')
+        ->set('search', 'Kitchen')
+        ->assertSee('Q-0101')
+        ->assertDontSee('Q-0102');
 });
 
 it('generates sequential quote numbers', function () {
@@ -99,14 +133,19 @@ it('admin can update an existing quote', function () {
 
     $client = User::factory()->create();
     $quote = Quote::factory()->create(['user_id' => $client->id, 'client_name' => $client->name, 'status' => 'draft']);
-    QuoteItem::factory()->create(['quote_id' => $quote->id, 'description' => 'Old item', 'quantity' => 1, 'unit_price' => 100, 'sort_order' => 0]);
+    $product = Product::factory()->create();
+    QuoteItem::factory()->create(['quote_id' => $quote->id, 'product_id' => $product->id, 'description' => 'Old item', 'quantity' => 1, 'unit_price' => 100, 'sort_order' => 0]);
 
     Volt::actingAs($admin)
         ->test('admin.quotes.edit', ['quote' => $quote])
+        ->set('title', 'Roofing')
         ->set('status', 'sent')
-        ->call('save');
+        ->call('save')
+        ->assertHasNoErrors();
 
-    expect($quote->fresh()->status)->toBe('sent');
+    expect($quote->fresh())
+        ->status->toBe('sent')
+        ->title->toBe('Roofing');
 });
 
 it('admin can delete a quote', function () {
@@ -117,7 +156,7 @@ it('admin can delete a quote', function () {
 
     Volt::actingAs($admin)
         ->test('admin.quotes.index')
-        ->call('deleteQuote', $quote->id);
+        ->call('archiveQuote', $quote->id);
 
     expect(Quote::find($quote->id))->toBeNull();
 });

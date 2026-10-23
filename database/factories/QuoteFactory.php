@@ -17,6 +17,7 @@ class QuoteFactory extends Factory
 
         return [
             'number' => 'Q-'.str_pad($counter, 4, '0', STR_PAD_LEFT),
+            'title' => $this->faker->randomElement(['Kitchen remodel', 'Roofing', 'Plumbing', 'Electrical', 'Flooring']),
             'client_name' => $this->faker->name(),
             'client_email' => $this->faker->safeEmail(),
             'client_phone' => $this->faker->phoneNumber(),
@@ -38,5 +39,18 @@ class QuoteFactory extends Factory
     public function accepted(): static
     {
         return $this->state(['status' => 'accepted']);
+    }
+
+    public function invoiced(): static
+    {
+        static $invoiceCounter = 0;
+        $invoiceCounter++;
+
+        return $this->state([
+            'status' => 'accepted',
+            'invoice_number' => 'INV-'.str_pad($invoiceCounter, 4, '0', STR_PAD_LEFT),
+            'invoice_date' => now()->toDateString(),
+            'invoice_due_date' => now()->addDays(15)->toDateString(),
+        ]);
     }
 }

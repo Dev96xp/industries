@@ -28,6 +28,9 @@
 
         <div class="message-box">
             <p>Hello <strong>{{ $quote->client_name }}</strong>,</p>
+            @if($quote->title)
+                <p style="margin-top:10px;">Job: <strong>{{ $quote->title }}</strong></p>
+            @endif
             <p style="margin-top:10px;">Please find your quote attached below. Review the details and click the button to approve it.</p>
         </div>
 

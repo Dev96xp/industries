@@ -1,5 +1,6 @@
 <?php
 
+use App\Mail\InvoiceSent;
 use App\Mail\QuoteSent;
 use App\Models\CompanySetting;
 use App\Models\Quote;
@@ -32,6 +33,26 @@ new #[Layout('components.layouts.app')] class extends Component {
         session()->flash('success', "Quote {$quote->number} sent to {$quote->client_email}.");
     }
 
+    public function sendInvoice(Quote $quote): void
+    {
+        if (! $quote->isInvoice()) {
+            return;
+        }
+
+        if (! $quote->client_email) {
+            session()->flash('error', 'This invoice has no client email.');
+
+            return;
+        }
+
+        $payUrl = $quote->paymentLinkForBalance();
+
+        Mail::to($quote->client_email)
+            ->send(new InvoiceSent($quote, CompanySetting::current(), $payUrl));
+
+        session()->flash('success', "Invoice {$quote->invoice_number} sent to {$quote->client_email}.");
+    }
+
     public function archiveQuote(Quote $quote): void
     {
         $quote->delete();
@@ -47,18 +68,20 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function with(): array
     {
+        $query = match ($this->activeTab) {
+            'archived' => Quote::onlyTrashed()->orderByDesc('deleted_at'),
+            'invoices' => Quote::invoices()->orderByDesc('invoice_date')->orderByDesc('id'),
+            default    => Quote::notInvoiced()->orderByDesc('created_at'),
+        };
+
         return [
-            'quotes' => $this->activeTab === 'archived'
-                ? Quote::onlyTrashed()->with(['project', 'payments', 'items'])
-                    ->when($this->search, fn ($q) => $q
-                        ->where('number', 'like', "%{$this->search}%")
-                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$this->search}%")))
-                    ->orderByDesc('deleted_at')->get()
-                : Quote::with(['project', 'payments', 'items'])
-                    ->when($this->search, fn ($q) => $q
-                        ->where('number', 'like', "%{$this->search}%")
-                        ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$this->search}%")))
-                    ->orderByDesc('created_at')->get(),
+            'quotes' => $query->with(['project', 'payments', 'items'])
+                ->when($this->search, fn ($q) => $q->where(fn ($q) => $q
+                    ->where('number', 'like', "%{$this->search}%")
+                    ->orWhere('invoice_number', 'like', "%{$this->search}%")
+                    ->orWhere('title', 'like', "%{$this->search}%")
+                    ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$this->search}%"))))
+                ->get(),
         ];
     }
 }; ?>
@@ -72,7 +95,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:text class="mt-1 text-zinc-500">Manage project quotes and estimates.</flux:text>
         </div>
         <div class="flex items-center gap-3">
-            <flux:input wire:model.live.debounce.300ms="search" size="sm" placeholder="Search by client..." icon="magnifying-glass" class="min-w-52" />
+            <flux:input wire:model.live.debounce.300ms="search" size="sm" placeholder="Search by client or job..." icon="magnifying-glass" class="min-w-52" />
             <flux:button href="{{ route('admin.quotes.create') }}" variant="primary" icon="plus" wire:navigate>
                 New Quote
             </flux:button>
@@ -91,7 +114,11 @@ new #[Layout('components.layouts.app')] class extends Component {
     <div class="flex gap-1 rounded-xl border border-zinc-200 bg-zinc-100 p-1 w-fit dark:border-zinc-700 dark:bg-zinc-800">
         <button wire:click="$set('activeTab', 'active')"
             class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $activeTab === 'active' ? 'bg-white shadow text-zinc-900 dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
-            Active
+            Quotes
+        </button>
+        <button wire:click="$set('activeTab', 'invoices')"
+            class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $activeTab === 'invoices' ? 'bg-white shadow text-zinc-900 dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            Invoices
         </button>
         <button wire:click="$set('activeTab', 'archived')"
             class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $activeTab === 'archived' ? 'bg-white shadow text-zinc-900 dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
@@ -104,7 +131,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white py-16 dark:border-zinc-700 dark:bg-zinc-900">
             <flux:icon.document-text class="size-10 text-zinc-300" />
             <p class="mt-3 text-sm text-zinc-400">
-                {{ $activeTab === 'archived' ? 'No archived quotes.' : 'No quotes yet. Create your first one.' }}
+                {{ match ($activeTab) { 'archived' => 'No archived quotes.', 'invoices' => 'No invoices yet. Convert an accepted quote to create one.', default => 'No quotes yet. Create your first one.' } }}
             </p>
         </div>
     @else
@@ -126,7 +153,15 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
                     @foreach($quotes as $quote)
                         <tr class="transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                            <td class="px-6 py-4 font-mono font-semibold text-zinc-700 dark:text-zinc-300">{{ $quote->number }}</td>
+                            <td class="px-6 py-4">
+                                <p class="font-mono font-semibold text-zinc-700 dark:text-zinc-300">{{ $quote->display_number }}</p>
+                                @if($quote->isInvoice())
+                                    <p class="font-mono text-xs text-zinc-400">{{ $quote->number }}</p>
+                                @endif
+                                @if($quote->title)
+                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ $quote->title }}</p>
+                                @endif
+                            </td>
                             <td class="px-6 py-4">
                                 <p class="font-medium text-zinc-900 dark:text-zinc-100">{{ $quote->client_name }}</p>
                                 @if($quote->client_email)
@@ -135,9 +170,18 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </td>
                             <td class="px-6 py-4 text-zinc-500">{{ $quote->quote_date->format('M d, Y') }}</td>
                             <td class="px-6 py-4">
-                                <flux:badge color="{{ match($quote->status) { 'draft' => 'zinc', 'sent' => 'blue', 'accepted' => 'green', 'rejected' => 'red' } }}">
-                                    {{ ucfirst($quote->status) }}
-                                </flux:badge>
+                                @if($quote->isInvoice())
+                                    <div class="flex flex-col items-start gap-1">
+                                        <flux:badge color="purple">Invoice</flux:badge>
+                                        <flux:badge size="sm" color="{{ match($quote->payment_status) { 'paid' => 'green', 'partial' => 'amber', default => 'red' } }}">
+                                            {{ ucfirst($quote->payment_status) }}
+                                        </flux:badge>
+                                    </div>
+                                @else
+                                    <flux:badge color="{{ match($quote->status) { 'draft' => 'zinc', 'sent' => 'blue', 'accepted' => 'green', 'rejected' => 'red' } }}">
+                                        {{ ucfirst($quote->status) }}
+                                    </flux:badge>
+                                @endif
                             </td>
                             <td class="px-6 py-4 text-xs text-zinc-400">
                                 {{ $quote->project?->name ?? '—' }}
@@ -182,10 +226,10 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             <flux:icon.printer class="size-4" />
                                         </a>
                                         <button
-                                            wire:click="sendQuote({{ $quote->id }})"
-                                            wire:confirm="Send quote {{ $quote->number }} to {{ $quote->client_email ?: 'client' }}?"
+                                            wire:click="{{ $quote->isInvoice() ? 'sendInvoice' : 'sendQuote' }}({{ $quote->id }})"
+                                            wire:confirm="Send {{ strtolower($quote->document_label) }} {{ $quote->display_number }} to {{ $quote->client_email ?: 'client' }}?"
                                             class="p-1.5 text-zinc-400 transition hover:text-blue-500 dark:hover:text-blue-400"
-                                            title="Send by email"
+                                            title="Send {{ strtolower($quote->document_label) }} by email"
                                         >
                                             <flux:icon.envelope class="size-4" />
                                         </button>
@@ -193,7 +237,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             Edit
                                         </flux:button>
                                         <flux:button wire:click="archiveQuote({{ $quote->id }})"
-                                            wire:confirm="Archive quote {{ $quote->number }}?"
+                                            wire:confirm="Archive {{ strtolower($quote->document_label) }} {{ $quote->display_number }}?"
                                             variant="ghost" size="sm" icon="archive-box"
                                             class="text-zinc-400 hover:text-zinc-600">
                                         </flux:button>

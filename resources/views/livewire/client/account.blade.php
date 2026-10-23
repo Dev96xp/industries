@@ -15,7 +15,7 @@ new #[Layout('components.layouts.client')] class extends Component {
                 ->orderByDesc('created_at')
                 ->get(),
             'quotes' => Quote::where('user_id', auth()->id())
-                ->with('items')
+                ->with(['items', 'payments'])
                 ->orderByDesc('created_at')
                 ->get(),
         ];
@@ -151,8 +151,14 @@ new #[Layout('components.layouts.client')] class extends Component {
                         <div class="p-5">
                             <div class="flex flex-wrap items-start justify-between gap-3">
                                 <div>
-                                    <p class="font-mono text-xs text-zinc-500">{{ $quote->number }}</p>
+                                    <p class="font-mono text-xs text-zinc-500">{{ $quote->document_label }} {{ $quote->display_number }}</p>
+                                    @if($quote->title)
+                                        <p class="text-sm font-medium text-zinc-300">{{ $quote->title }}</p>
+                                    @endif
                                     <p class="mt-0.5 text-lg font-bold text-white">${{ number_format($quote->total, 2) }}</p>
+                                    @if($quote->isInvoice() && $quote->balance_due > 0)
+                                        <p class="text-xs font-semibold text-red-300">Balance due ${{ number_format($quote->balance_due, 2) }} · Due {{ $quote->invoice_due_date->format('M d, Y') }}</p>
+                                    @endif
                                     <p class="text-xs text-zinc-400">{{ $quote->quote_date->format('M d, Y') }}
                                         @if($quote->expiration_date)
                                             &nbsp;·&nbsp; Expires {{ $quote->expiration_date->format('M d, Y') }}
@@ -175,7 +181,7 @@ new #[Layout('components.layouts.client')] class extends Component {
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.641 0-8.58-3.007-9.964-7.178Z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                                     </svg>
-                                    View Quote
+                                    View {{ $quote->document_label }}
                                 </a>
 
                                 @if($quote->status === 'sent')

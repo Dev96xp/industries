@@ -11,6 +11,7 @@ use Livewire\Volt\Component;
 new #[Layout('components.layouts.app')] class extends Component {
     public ?int $user_id         = null;
     public ?int $project_id      = null;
+    public string $title         = '';
     public string $quote_date    = '';
     public string $expiration_date = '';
     public string $tax_percentage  = '0';
@@ -89,6 +90,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     {
         $this->validate([
             'user_id'         => ['required', 'exists:users,id'],
+            'title'           => ['required', 'string', 'max:255'],
             'quote_date'      => ['required', 'date'],
             'expiration_date' => ['nullable', 'date'],
             'tax_percentage'  => ['numeric', 'min:0', 'max:100'],
@@ -108,6 +110,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $quote = Quote::create([
             'user_id'         => $this->user_id,
             'number'          => Quote::generateNumber(),
+            'title'           => $this->title,
             'client_name'     => $client->name,
             'client_email'    => $client->email,
             'client_phone'    => $client->phone ?? null,
@@ -201,6 +204,9 @@ new #[Layout('components.layouts.app')] class extends Component {
         {{-- Quote details --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Quote Details</h3>
+            <div class="mb-4">
+                <flux:input wire:model="title" label="Job Name" placeholder="e.g. Kitchen remodel, Roofing, Plumbing..." required />
+            </div>
             <div class="grid gap-4 sm:grid-cols-3">
                 <flux:input wire:model="quote_date" label="Quote Date" type="date" required />
                 <flux:input wire:model="expiration_date" label="Expiration Date" type="date" />

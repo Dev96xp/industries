@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -12,7 +13,6 @@ class ProductFactory extends Factory
 {
     public function definition(): array
     {
-        $categories = ['materials', 'labor', 'equipment', 'permits', 'other'];
         $units = ['each', 'sqft', 'hr', 'day', 'lb', 'ton', 'yd', 'bag'];
 
         return [
@@ -20,7 +20,7 @@ class ProductFactory extends Factory
             'description' => fake()->optional()->sentence(),
             'unit_price' => fake()->randomFloat(2, 10, 5000),
             'unit' => fake()->randomElement($units),
-            'category' => fake()->randomElement($categories),
+            'category_id' => Category::factory(),
             'is_active' => true,
         ];
     }

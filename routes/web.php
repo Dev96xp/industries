@@ -93,11 +93,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('client/quotes/{quote}', function (Quote $quote) {
         abort_if($quote->user_id !== auth()->id(), 403);
 
-        $quote->load('items');
+        $quote->load('items', 'payments');
 
         return view('client.quote', [
             'quote' => $quote,
             'company' => CompanySetting::current(),
+            'payUrl' => $quote->isInvoice() ? $quote->pendingPaymentLinkForBalance() : null,
         ]);
     })->name('client.quotes.view');
 });
