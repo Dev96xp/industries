@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\QuotePayment;
+use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
@@ -40,6 +41,10 @@ new #[Layout('components.layouts.app')] class extends Component {
     // Invoice modal
     public bool   $showInvoiceModal = false;
     public string $invoiceDueDate   = '';
+
+    // Change client
+    public bool $changingClient = false;
+    public ?int $newClientId    = null;
 
     public function mount(Quote $quote): void
     {
@@ -149,7 +154,62 @@ new #[Layout('components.layouts.app')] class extends Component {
         $locked    = $fullyPaid || $isInvoice;
         $canRevert = $isInvoice && $this->quote->payments->isEmpty();
 
-        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid', 'projects', 'isInvoice', 'locked', 'canRevert');
+        $canChangeClient = $this->canChangeClient();
+        $clients = $this->changingClient
+            ? User::role('client')->orderBy('name')->get(['id', 'name', 'email'])
+            : collect();
+
+        return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid', 'projects', 'isInvoice', 'locked', 'canRevert', 'canChangeClient', 'clients');
+    }
+
+    private function canChangeClient(): bool
+    {
+        return ! $this->quote->isInvoice() && $this->quote->payments->isEmpty();
+    }
+
+    public function startChangingClient(): void
+    {
+        if (! $this->canChangeClient()) {
+            return;
+        }
+
+        $this->newClientId    = $this->quote->user_id;
+        $this->changingClient = true;
+    }
+
+    public function changeClient(): void
+    {
+        $this->quote->load('payments');
+
+        if (! $this->canChangeClient()) {
+            session()->flash('error', 'The client cannot be changed on an invoice or a quote with payments.');
+
+            return;
+        }
+
+        $this->validate([
+            'newClientId' => ['required', 'exists:users,id'],
+        ], [
+            'newClientId.required' => 'Choose a client.',
+        ]);
+
+        $client = User::role('client')->findOrFail($this->newClientId);
+
+        $projectBelongsToClient = $this->quote->project_id
+            && Project::whereKey($this->quote->project_id)->where('client_user_id', $client->id)->exists();
+
+        $this->quote->update([
+            'user_id'      => $client->id,
+            'client_name'  => $client->name,
+            'client_email' => $client->email,
+            'client_phone' => $client->phone ?? null,
+            'project_id'   => $projectBelongsToClient ? $this->quote->project_id : null,
+        ]);
+
+        $this->projectId      = $this->quote->project_id;
+        $this->changingClient = false;
+
+        session()->flash('success', "Client changed to {$client->name}.");
     }
 
     public function save(): void
@@ -481,9 +541,26 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     <form wire:submit="save" class="flex flex-col gap-6 max-w-6xl {{ $locked ? 'pointer-events-none opacity-60 select-none' : '' }}">
 
-        {{-- Client card (read-only) --}}
+        {{-- Client card --}}
         <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Client</h3>
+            @if($changingClient)
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <div class="flex-1">
+                        <flux:select wire:model="newClientId" label="Select Client" placeholder="Choose a registered client...">
+                            @foreach($clients as $c)
+                                <flux:select.option value="{{ $c->id }}">{{ $c->name }} — {{ $c->email }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:error name="newClientId" />
+                    </div>
+                    <div class="flex gap-2">
+                        <flux:button type="button" wire:click="$set('changingClient', false)" variant="ghost">Cancel</flux:button>
+                        <flux:button type="button" wire:click="changeClient" variant="primary">Change Client</flux:button>
+                    </div>
+                </div>
+                <p class="mt-2 text-xs text-zinc-400">If the linked project belongs to another client, it will be unlinked.</p>
+            @else
             <div class="flex items-center gap-4">
                 <div class="flex size-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-sm dark:bg-blue-900 dark:text-blue-200">
                     {{ strtoupper(substr($quote->client_name, 0, 1)) }}
@@ -497,13 +574,22 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <p class="text-sm text-zinc-500">{{ $quote->client_phone }}</p>
                     @endif
                 </div>
-                @if($quote->client)
-                    <a href="{{ route('admin.users') }}" wire:navigate
-                        class="ml-auto text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-                        View in Users
-                    </a>
-                @endif
+                <div class="ml-auto flex items-center gap-4">
+                    @if($quote->client)
+                        <a href="{{ route('admin.users') }}" wire:navigate
+                            class="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                            View in Users
+                        </a>
+                    @endif
+                    @if($canChangeClient)
+                        <button type="button" wire:click="startChangingClient"
+                            class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400">
+                            Change
+                        </button>
+                    @endif
+                </div>
             </div>
+            @endif
         </div>
 
         {{-- Quote details --}}

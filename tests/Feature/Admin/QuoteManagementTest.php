@@ -4,6 +4,7 @@ use App\Models\Product;
 use App\Models\Project;
 use App\Models\Quote;
 use App\Models\QuoteItem;
+use App\Models\QuotePayment;
 use App\Models\User;
 use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Permission;
@@ -194,3 +195,62 @@ it('cannot convert an already-linked quote to a project', function () {
 
     expect(Project::count())->toBe(1);
 });
+
+it('can change the client of a quote', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage quotes');
+
+    $oldClient = User::factory()->create();
+    $oldClient->assignRole('client');
+    $newClient = User::factory()->create(['name' => 'New Client', 'email' => 'new@example.com', 'phone' => '555-0100']);
+    $newClient->assignRole('client');
+
+    $oldProject = Project::factory()->create(['client_user_id' => $oldClient->id]);
+    $quote = Quote::factory()->create([
+        'user_id' => $oldClient->id,
+        'client_name' => $oldClient->name,
+        'project_id' => $oldProject->id,
+        'status' => 'draft',
+    ]);
+
+    Volt::actingAs($admin)
+        ->test('admin.quotes.edit', ['quote' => $quote])
+        ->call('startChangingClient')
+        ->assertSet('changingClient', true)
+        ->set('newClientId', $newClient->id)
+        ->call('changeClient')
+        ->assertHasNoErrors()
+        ->assertSet('changingClient', false)
+        ->assertSet('projectId', null);
+
+    expect($quote->fresh())
+        ->user_id->toBe($newClient->id)
+        ->client_name->toBe('New Client')
+        ->client_email->toBe('new@example.com')
+        ->client_phone->toBe('555-0100')
+        ->project_id->toBeNull();
+});
+
+it('cannot change the client of an invoice or a quote with payments', function (string $case) {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage quotes');
+
+    $oldClient = User::factory()->create();
+    $newClient = User::factory()->create();
+    $newClient->assignRole('client');
+
+    $quote = $case === 'invoice'
+        ? Quote::factory()->invoiced()->create(['user_id' => $oldClient->id])
+        : Quote::factory()->create(['user_id' => $oldClient->id]);
+
+    if ($case === 'payments') {
+        QuotePayment::factory()->create(['quote_id' => $quote->id, 'amount' => 100]);
+    }
+
+    Volt::actingAs($admin)
+        ->test('admin.quotes.edit', ['quote' => $quote])
+        ->set('newClientId', $newClient->id)
+        ->call('changeClient');
+
+    expect($quote->fresh()->user_id)->toBe($oldClient->id);
+})->with(['invoice', 'payments']);
