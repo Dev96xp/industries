@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Quote;
 use App\Models\User;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -115,6 +116,12 @@ new #[Layout('components.layouts.app')] class extends Component {
         if ($addressChanged) {
             $this->geocodeUser($user);
         }
+
+        Quote::where('user_id', $user->id)->notInvoiced()->update([
+            'client_name'  => $user->name,
+            'client_email' => $user->email,
+            'client_phone' => $user->phone,
+        ]);
 
         $this->modal('edit-client')->close();
         session()->flash('success', "Client \"{$user->name}\" updated.");

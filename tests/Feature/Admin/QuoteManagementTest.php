@@ -6,6 +6,7 @@ use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\QuotePayment;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Livewire\Volt\Volt;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -254,3 +255,32 @@ it('cannot change the client of an invoice or a quote with payments', function (
 
     expect($quote->fresh()->user_id)->toBe($oldClient->id);
 })->with(['invoice', 'payments']);
+
+it('updates client details on quotes but not invoices when the client is edited', function () {
+    Http::fake();
+    Permission::firstOrCreate(['name' => 'manage users']);
+
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage users');
+
+    $client = User::factory()->create(['name' => 'Vanesa Typo', 'email' => 'old@example.com', 'phone' => '111']);
+    $client->assignRole('client');
+
+    $quote = Quote::factory()->create(['user_id' => $client->id, 'client_name' => 'Vanesa Typo', 'client_email' => 'old@example.com', 'client_phone' => '111']);
+    $invoice = Quote::factory()->invoiced()->create(['user_id' => $client->id, 'client_name' => 'Vanesa Typo', 'client_email' => 'old@example.com', 'client_phone' => '111']);
+
+    Volt::actingAs($admin)
+        ->test('admin.clients.index')
+        ->call('openEdit', $client->id)
+        ->set('editName', 'Vanessa Fixed')
+        ->set('editEmail', 'new@example.com')
+        ->set('editPhone', '222')
+        ->call('updateClient')
+        ->assertHasNoErrors();
+
+    expect($quote->fresh())
+        ->client_name->toBe('Vanessa Fixed')
+        ->client_email->toBe('new@example.com')
+        ->client_phone->toBe('222')
+        ->and($invoice->fresh()->client_name)->toBe('Vanesa Typo');
+});
