@@ -247,13 +247,23 @@ new #[Layout('components.layouts.app')] class extends Component {
                             dropdownStyle: {},
                             updatePosition() {
                                 const rect = this.$refs.comboInput.getBoundingClientRect();
-                                this.dropdownStyle = {
+                                const gap = 4;
+                                const spaceBelow = window.innerHeight - rect.bottom - gap;
+                                const spaceAbove = rect.top - gap;
+                                const openUp = spaceBelow < 240 && spaceAbove > spaceBelow;
+                                const style = {
                                     position: 'fixed',
-                                    top: (rect.bottom + window.scrollY) + 'px',
-                                    left: (rect.left + window.scrollX) + 'px',
+                                    left: rect.left + 'px',
                                     width: rect.width + 'px',
+                                    maxHeight: Math.max(Math.min(320, (openUp ? spaceAbove : spaceBelow) - 8), 120) + 'px',
                                     zIndex: 9999,
                                 };
+                                if (openUp) {
+                                    style.bottom = (window.innerHeight - rect.top + gap) + 'px';
+                                } else {
+                                    style.top = (rect.bottom + gap) + 'px';
+                                }
+                                this.dropdownStyle = style;
                             },
                             products: {{ Js::from($products->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'category' => $p->category?->name ?? 'Other', 'unit_price' => $p->unit_price, 'unit' => $p->unit])) }},
                             get filtered() {
@@ -288,6 +298,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                             }
                         }"
                         x-on:click.outside="open = false"
+                        x-on:scroll.window.capture="open && updatePosition()"
+                        x-on:resize.window="open && updatePosition()"
                     >
                         <div class="col-span-5 flex flex-col gap-1">
                             <div class="relative">
@@ -307,7 +319,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         x-show="open && filtered.length > 0"
                                         x-transition
                                         :style="dropdownStyle"
-                                        class="mt-1 max-h-80 overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+                                        class="overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
                                     >
                                         <template x-for="(product, idx) in filtered" :key="product.id">
                                             <button
@@ -327,7 +339,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                             </button>
                                         </template>
                                     </div>
-                                    <div x-show="open && query && filtered.length === 0" :style="dropdownStyle" class="mt-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-400 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+                                    <div x-show="open && query && filtered.length === 0" :style="dropdownStyle" class="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-400 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
                                         No products found.
                                     </div>
                                 </template>
