@@ -218,3 +218,71 @@ it('shows the invoice on the admin report and client view', function () {
         ->assertSee('INV-0301')
         ->assertSee('Balance Due');
 });
+
+it('shows each client invoice by job name in the clients card view', function () {
+    $client = User::factory()->create(['name' => 'Card Client']);
+    $client->assignRole('client');
+
+    Quote::factory()->invoiced()->create(['user_id' => $client->id, 'title' => 'Kitchen remodel']);
+    Quote::factory()->invoiced()->create(['user_id' => $client->id, 'title' => null, 'invoice_number' => 'INV-0555']);
+    Quote::factory()->create(['user_id' => $client->id, 'title' => 'Not invoiced yet']);
+
+    Volt::actingAs($this->admin)
+        ->test('admin.clients.index')
+        ->assertSee('Card Client')
+        ->assertSee('Kitchen remodel')
+        ->assertSee('INV-0555')
+        ->assertDontSee('Not invoiced yet');
+});
+
+it('flags clients with an invoice from the last 10 days as new', function (int $daysAgo, bool $isNew) {
+    $client = User::factory()->create();
+    $client->assignRole('client');
+
+    Quote::factory()->invoiced()->create(['user_id' => $client->id, 'invoice_date' => now()->subDays($daysAgo)]);
+
+    $component = Volt::actingAs($this->admin)->test('admin.clients.index');
+
+    expect(substr_count($component->html(), 'New invoice in the last 10 days'))->toBe($isNew ? 2 : 0)
+        ->and(str_contains($component->html(), 'title="New invoice INV-'))->toBe($isNew);
+})->with([
+    'today' => [0, true],
+    '10 days ago' => [10, true],
+    '11 days ago' => [11, false],
+]);
+
+it('sorts clients by usage', function (string $sortBy, array $expectedOrder) {
+    $alice = User::factory()->create(['name' => 'Alice Few']);
+    $bob = User::factory()->create(['name' => 'Bob Many']);
+    $carl = User::factory()->create(['name' => 'Carl Rich']);
+    collect([$alice, $bob, $carl])->each->assignRole('client');
+
+    Quote::factory()->count(3)->create(['user_id' => $bob->id]);
+    $big = Quote::factory()->invoiced()->create(['user_id' => $carl->id, 'tax_percentage' => 0, 'discount' => 0]);
+    QuoteItem::factory()->create(['quote_id' => $big->id, 'quantity' => 1, 'unit_price' => 9000]);
+    $recent = Quote::factory()->create(['user_id' => $alice->id]);
+    $recent->forceFill(['updated_at' => now()->addMinute()])->save();
+
+    Volt::actingAs($this->admin)
+        ->test('admin.clients.index')
+        ->set('sortBy', $sortBy)
+        ->assertSeeInOrder($expectedOrder);
+})->with([
+    'name' => ['name', ['Alice Few', 'Bob Many', 'Carl Rich']],
+    'most quotes' => ['quotes', ['Bob Many', 'Alice Few']],
+    'top billed' => ['billed', ['Carl Rich', 'Alice Few']],
+    'recent activity' => ['recent', ['Alice Few', 'Bob Many']],
+]);
+
+it('sorts clients in registration order', function () {
+    $first = User::factory()->create(['name' => 'Zed Registered First']);
+    $second = User::factory()->create(['name' => 'Amy Registered Second']);
+    collect([$first, $second])->each->assignRole('client');
+
+    Volt::actingAs($this->admin)
+        ->test('admin.clients.index')
+        ->set('sortBy', 'original')
+        ->assertSeeInOrder(['Zed Registered First', 'Amy Registered Second'])
+        ->set('sortBy', 'name')
+        ->assertSeeInOrder(['Amy Registered Second', 'Zed Registered First']);
+});

@@ -160,6 +160,9 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $search       = '';
     public ?int   $locationFilter = null;
 
+    #[\Livewire\Attributes\Session]
+    public string $sortBy = 'name';
+
     public function mount(): void
     {
         $user = auth()->user();
@@ -170,24 +173,34 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function with(): array
     {
+        $clients = User::with(['roles', 'quotes' => fn ($q) => $q->orderByDesc('created_at'), 'quotes.items', 'quotes.payments'])
+            ->whereHas('roles', fn ($q) => $q->where('name', 'client'))
+            ->withCount(['projects', 'quotes'])
+            ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter))
+            ->when($this->search, fn ($q) => $q->where(fn ($q) => $q
+                ->where('name', 'like', "%{$this->search}%")
+                ->orWhere('email', 'like', "%{$this->search}%")
+                ->orWhere('phone', 'like', "%{$this->search}%")
+            ))
+            ->orderBy('name')
+            ->get();
+
+        $clients = match ($this->sortBy) {
+            'quotes'   => $clients->sortByDesc('quotes_count'),
+            'billed'   => $clients->sortByDesc(fn (User $client) => $client->quotes->filter(fn ($quote) => $quote->isInvoice())->sum(fn ($quote) => $quote->total)),
+            'recent'   => $clients->sortByDesc(fn (User $client) => $client->quotes->max('updated_at')?->timestamp ?? 0),
+            'original' => $clients->sortBy('id'),
+            default    => $clients,
+        };
+
         return [
-            'clients' => User::with(['roles', 'quotes' => fn ($q) => $q->orderByDesc('created_at')])
-                ->whereHas('roles', fn ($q) => $q->where('name', 'client'))
-                ->withCount(['projects', 'quotes'])
-                ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter))
-                ->when($this->search, fn ($q) => $q->where(fn ($q) => $q
-                    ->where('name', 'like', "%{$this->search}%")
-                    ->orWhere('email', 'like', "%{$this->search}%")
-                    ->orWhere('phone', 'like', "%{$this->search}%")
-                ))
-                ->orderBy('name')
-                ->get(),
+            'clients'   => $clients->values(),
             'locations' => \App\Models\Location::where('is_active', true)->orderBy('name')->get(),
         ];
     }
 }; ?>
 
-<div class="flex h-full w-full flex-1 flex-col gap-6 p-0 sm:p-6">
+<div class="flex h-full w-full flex-1 flex-col gap-6 p-0 sm:p-6" x-data="{ view: $persist('list').as('clients-view') }">
 
     {{-- Header --}}
     <div class="flex items-center justify-between">
@@ -284,8 +297,211 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
+    {{-- View switcher --}}
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-3">
+        <div class="relative inline-flex rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800/80" role="tablist">
+            <span class="absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-lg bg-white shadow-sm ring-1 ring-zinc-900/5 transition-transform duration-300 ease-out dark:bg-zinc-900 dark:ring-white/10"
+                :class="view === 'cards' ? 'translate-x-full' : 'translate-x-0'"></span>
+            <button type="button" role="tab" x-on:click="view = 'list'" :aria-selected="view === 'list'"
+                class="relative z-10 inline-flex w-24 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors"
+                :class="view === 'list' ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                <flux:icon.list-bullet variant="micro" /> List
+            </button>
+            <button type="button" role="tab" x-on:click="view = 'cards'" :aria-selected="view === 'cards'"
+                class="relative z-10 inline-flex w-24 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors"
+                :class="view === 'cards' ? 'text-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                <flux:icon.squares-2x2 variant="micro" /> Cards
+            </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <flux:icon.arrows-up-down variant="micro" class="text-zinc-400" />
+            <flux:select wire:model.live="sortBy" size="sm" class="min-w-44">
+                <flux:select.option value="name">Name (A–Z)</flux:select.option>
+                <flux:select.option value="quotes">Most quotes</flux:select.option>
+                <flux:select.option value="billed">Top billed</flux:select.option>
+                <flux:select.option value="recent">Recent activity</flux:select.option>
+                <flux:select.option value="original">Registration order</flux:select.option>
+            </flux:select>
+        </div>
+        </div>
+
+        <div x-show="view === 'cards'" x-transition.opacity class="flex items-center gap-4 text-[11px] font-medium text-zinc-400">
+            <span class="inline-flex items-center gap-1.5"><span class="size-1.5 rounded-full bg-emerald-500"></span> Paid</span>
+            <span class="inline-flex items-center gap-1.5"><span class="size-1.5 rounded-full bg-amber-400"></span> Partial</span>
+            <span class="inline-flex items-center gap-1.5"><span class="size-1.5 rounded-full bg-rose-500"></span> Due</span>
+        </div>
+    </div>
+
+    {{-- Cards view --}}
+    <div x-show="view === 'cards'" x-cloak
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-2"
+        x-transition:enter-end="opacity-100 translate-y-0">
+        @if($clients->isEmpty())
+            <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 py-16 dark:border-zinc-700">
+                <flux:icon.users class="size-8 text-zinc-300 dark:text-zinc-600" />
+                <p class="mt-3 text-sm text-zinc-400">No clients have registered yet.</p>
+            </div>
+        @else
+            <div class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                @foreach($clients as $client)
+                    @php
+                        $gradients = [
+                            'from-amber-400 to-orange-500',
+                            'from-sky-400 to-blue-600',
+                            'from-violet-400 to-purple-600',
+                            'from-emerald-400 to-teal-600',
+                            'from-rose-400 to-pink-600',
+                            'from-indigo-400 to-blue-700',
+                        ];
+                        $gradient       = $gradients[$client->id % count($gradients)];
+                        $invoices       = $client->quotes->filter(fn ($quote) => $quote->isInvoice())->values();
+                        $invoicedTotal  = $invoices->sum(fn ($invoice) => $invoice->total);
+                        $collectedTotal = $invoices->sum(fn ($invoice) => min($invoice->amount_paid, $invoice->total));
+                        $collectedPct   = $invoicedTotal > 0 ? (int) round($collectedTotal / $invoicedTotal * 100) : 0;
+                        $newSince       = now()->subDays(10)->startOfDay();
+                        $hasNewInvoice  = $invoices->contains(fn ($invoice) => $invoice->invoice_date?->gte($newSince));
+                    @endphp
+
+                    <div wire:key="client-card-{{ $client->id }}" x-data="{ open: false }"
+                        class="group/card overflow-hidden rounded-2xl border bg-white transition-all duration-300 dark:bg-zinc-900"
+                        :class="open
+                            ? 'border-zinc-300 shadow-xl shadow-zinc-200/60 dark:border-zinc-600 dark:shadow-black/30'
+                            : 'border-zinc-200/80 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-lg hover:shadow-zinc-200/50 dark:border-zinc-800 dark:hover:border-zinc-700 dark:hover:shadow-black/20'">
+
+                        {{-- Card header --}}
+                        <button type="button" x-on:click="open = ! open" :aria-expanded="open"
+                            class="flex w-full flex-col gap-4 p-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zinc-400">
+                            <div class="flex w-full items-center gap-3">
+                                <div class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br {{ $gradient }} text-sm font-semibold tracking-wide text-white shadow-sm">
+                                    {{ $client->initials() }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <p class="truncate font-semibold text-zinc-900 dark:text-zinc-100">{{ $client->name }}</p>
+                                        @if($hasNewInvoice)
+                                            <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-600 ring-1 ring-inset ring-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-400/20"
+                                                title="New invoice in the last 10 days">
+                                                <span class="relative flex size-1.5">
+                                                    <span class="absolute inline-flex size-full animate-ping rounded-full bg-blue-500 opacity-60"></span>
+                                                    <span class="relative inline-flex size-1.5 rounded-full bg-blue-500"></span>
+                                                </span>
+                                                New
+                                            </span>
+                                        @endif
+                                    </div>
+                                    <p class="truncate text-xs text-zinc-400">{{ $client->email }}</p>
+                                </div>
+                                <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-all duration-300 group-hover/card:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:group-hover/card:bg-zinc-700"
+                                    :class="open && 'rotate-180 !bg-zinc-900 !text-white dark:!bg-white dark:!text-zinc-900'">
+                                    <flux:icon.chevron-down variant="micro" />
+                                </span>
+                            </div>
+
+                            <div class="flex w-full items-end justify-between gap-3">
+                                <div>
+                                    <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Invoices</p>
+                                    <p class="mt-0.5 text-2xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">{{ $invoices->count() }}</p>
+                                </div>
+                                @if($invoices->isNotEmpty())
+                                    <div class="text-right">
+                                        <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-400">Collected</p>
+                                        <p class="mt-0.5 text-sm font-semibold tabular-nums text-zinc-700 dark:text-zinc-300">
+                                            ${{ number_format($collectedTotal, 0) }}
+                                            <span class="font-normal text-zinc-400">/ ${{ number_format($invoicedTotal, 0) }}</span>
+                                        </p>
+                                    </div>
+                                @endif
+                            </div>
+
+                            @if($invoices->isNotEmpty())
+                                <div class="h-1 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800" title="{{ $collectedPct }}% collected">
+                                    <div class="h-full rounded-full transition-all duration-700 {{ $collectedPct >= 100 ? 'bg-emerald-500' : 'bg-zinc-900 dark:bg-zinc-100' }}"
+                                        style="width: {{ $collectedPct }}%"></div>
+                                </div>
+                            @endif
+                        </button>
+
+                        {{-- Invoice tree --}}
+                        <div x-show="open" x-collapse x-cloak>
+                            <div class="border-t border-zinc-100 px-5 pb-5 pt-4 dark:border-zinc-800">
+                                @if($invoices->isEmpty())
+                                    <p class="flex items-center gap-2 text-xs text-zinc-400">
+                                        <flux:icon.document-text variant="micro" class="text-zinc-300 dark:text-zinc-600" />
+                                        No invoices yet
+                                    </p>
+                                @else
+                                    <div class="flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                        <span class="flex size-5 items-center justify-center rounded-md bg-zinc-100 dark:bg-zinc-800">
+                                            <flux:icon.folder-open variant="micro" class="size-3" />
+                                        </span>
+                                        {{ $client->name }}
+                                    </div>
+                                    <ul class="mt-1">
+                                        @foreach($invoices as $invoice)
+                                            @php
+                                                $isOverdue = $invoice->payment_status !== 'paid' && $invoice->invoice_due_date?->copy()->endOfDay()->isPast();
+                                                $dotColor  = match ($invoice->payment_status) {
+                                                    'paid'    => 'bg-emerald-500',
+                                                    'partial' => 'bg-amber-400',
+                                                    default   => 'bg-rose-500',
+                                                };
+                                            @endphp
+                                            <li wire:key="client-{{ $client->id }}-invoice-{{ $invoice->id }}" class="group/item relative pl-7"
+                                                x-show="open"
+                                                x-transition:enter="transition ease-out duration-300"
+                                                x-transition:enter-start="opacity-0 -translate-x-1"
+                                                x-transition:enter-end="opacity-100 translate-x-0"
+                                                style="transition-delay: {{ 60 + $loop->index * 45 }}ms">
+                                                <span class="pointer-events-none absolute left-2.5 top-0 h-1/2 w-3.5 rounded-bl-lg border-b border-l border-zinc-200 dark:border-zinc-700"></span>
+                                                @unless($loop->last)
+                                                    <span class="pointer-events-none absolute bottom-0 left-2.5 top-1/2 border-l border-zinc-200 dark:border-zinc-700"></span>
+                                                @endunless
+
+                                                @can('manage quotes')
+                                                    <a href="{{ route('admin.quotes.edit', $invoice) }}" wire:navigate
+                                                        class="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                                                        title="{{ $invoice->invoice_number }} · {{ ucfirst($invoice->payment_status) }}{{ $isOverdue ? ' · Overdue' : '' }}">
+                                                @else
+                                                    <div class="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5"
+                                                        title="{{ $invoice->invoice_number }} · {{ ucfirst($invoice->payment_status) }}{{ $isOverdue ? ' · Overdue' : '' }}">
+                                                @endcan
+                                                        <span class="relative flex size-2 shrink-0">
+                                                            @if($isOverdue)
+                                                                <span class="absolute inline-flex size-full animate-ping rounded-full {{ $dotColor }} opacity-60"></span>
+                                                            @endif
+                                                            <span class="relative inline-flex size-2 rounded-full {{ $dotColor }}"></span>
+                                                        </span>
+                                                        <span class="truncate text-sm text-zinc-700 transition-colors group-hover/item:text-zinc-900 dark:text-zinc-300 dark:group-hover/item:text-white">
+                                                            {{ $invoice->title ?: $invoice->invoice_number }}
+                                                        </span>
+                                                        @if($invoice->invoice_date?->gte($newSince))
+                                                            <span class="shrink-0 rounded-full bg-blue-50 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">New</span>
+                                                        @endif
+                                                        @can('manage quotes')
+                                                            <flux:icon.arrow-up-right variant="micro" class="ml-auto size-3.5 shrink-0 -translate-x-1 text-zinc-400 opacity-0 transition-all duration-200 group-hover/item:translate-x-0 group-hover/item:opacity-100" />
+                                                        @endcan
+                                                @can('manage quotes')
+                                                    </a>
+                                                @else
+                                                    </div>
+                                                @endcan
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+
     {{-- Table --}}
-    <div class="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+    <div x-show="view === 'list'" class="rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
@@ -301,6 +517,9 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </thead>
 
                 @forelse($clients as $client)
+                    @php
+                        $hasNewInvoice = $client->quotes->contains(fn ($quote) => $quote->invoice_date?->gte(now()->subDays(10)->startOfDay()));
+                    @endphp
                     <tbody x-data="{ open: false }" class="divide-y divide-zinc-100 dark:divide-zinc-800">
 
                         {{-- Client row --}}
@@ -320,7 +539,19 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         {{ $client->initials() }}
                                     </div>
                                     <div>
-                                        <p class="font-medium text-zinc-900 dark:text-zinc-100">{{ $client->name }}</p>
+                                        <div class="flex items-center gap-2">
+                                            <p class="font-medium text-zinc-900 dark:text-zinc-100">{{ $client->name }}</p>
+                                            @if($hasNewInvoice)
+                                                <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-600 ring-1 ring-inset ring-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400 dark:ring-blue-400/20"
+                                                    title="New invoice in the last 10 days">
+                                                    <span class="relative flex size-1.5">
+                                                        <span class="absolute inline-flex size-full animate-ping rounded-full bg-blue-500 opacity-60"></span>
+                                                        <span class="relative inline-flex size-1.5 rounded-full bg-blue-500"></span>
+                                                    </span>
+                                                    New
+                                                </span>
+                                            @endif
+                                        </div>
                                         <p class="text-xs text-zinc-400">{{ $client->email }}</p>
                                     </div>
                                 </div>
@@ -386,7 +617,15 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         <tbody class="divide-y divide-zinc-100 dark:divide-zinc-700">
                                             @foreach($client->quotes as $quote)
                                                 <tr class="hover:bg-zinc-100/50 dark:hover:bg-zinc-700/30">
-                                                    <td class="py-2 font-mono font-semibold text-amber-500">{{ $quote->number }}</td>
+                                                    <td class="py-2">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-mono font-semibold text-amber-500">{{ $quote->number }}</span>
+                                                            @if($quote->invoice_date?->gte(now()->subDays(10)->startOfDay()))
+                                                                <span class="shrink-0 rounded-full bg-blue-50 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                                                                    title="New invoice {{ $quote->invoice_number }}">New</span>
+                                                            @endif
+                                                        </div>
+                                                    </td>
                                                     <td class="py-2 text-zinc-500">{{ $quote->quote_date->format('M d, Y') }}</td>
                                                     <td class="py-2">
                                                         <flux:badge size="sm" color="{{ match($quote->status) { 'draft' => 'zinc', 'sent' => 'blue', 'accepted' => 'green', 'rejected' => 'red' } }}">
