@@ -50,7 +50,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['restrict.ip'])->group(function () {
-    Route::view('dashboard', 'dashboard')
+    Volt::route('dashboard', 'dashboard')
         ->middleware(['auth', 'verified', 'not.client'])
         ->name('dashboard');
 

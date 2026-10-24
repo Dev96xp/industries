@@ -6,9 +6,11 @@ use App\Models\CompanySetting;
 use App\Models\Quote;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 
 new #[Layout('components.layouts.app')] class extends Component {
+    #[Url(as: 'tab')]
     public string $activeTab = 'active';
     public string $search    = '';
 
