@@ -350,7 +350,7 @@
                             Nucleus Industries was built on a simple belief: every family deserves a home that's built with care. We're a hands-on team that takes pride in our work and shows up for our clients every step of the way.
                         </p>
                         <p class="mt-4 text-sm text-zinc-400 sm:text-base">
-                            We've completed 17 homes and counting — each one built with the same attention to detail as the first. We're fully licensed and insured, and we work closely with every client to make the process as smooth as possible.
+                            We've worked on many properties and counting — each one built with the same attention to detail as the first. We're fully licensed and insured, and we work closely with every client to make the process as smooth as possible.
                         </p>
 
                         <div class="mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4">
@@ -387,7 +387,7 @@
                             <div class="flex items-center gap-4">
                                 <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl sm:size-12">🏠</div>
                                 <div>
-                                    <p class="font-bold text-white">17 Homes Built</p>
+                                    <p class="font-bold text-white">Many updated houses</p>
                                     <p class="text-xs text-zinc-400">And every client still calls us back</p>
                                 </div>
                             </div>
