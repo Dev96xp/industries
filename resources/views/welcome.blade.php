@@ -394,8 +394,61 @@
                         </div>
                     </div>
                 </div>
+
+                {{-- Trades --}}
+                <div class="mt-16 border-t border-white/10 pt-12 sm:mt-20 sm:pt-16">
+                    <p class="mb-3 text-xs font-bold uppercase tracking-widest text-blue-400">Our Trades</p>
+                    <h3 class="text-2xl font-extrabold leading-tight text-white sm:text-3xl">
+                        Every Trade, One Team.
+                    </h3>
+                    <p class="mt-4 max-w-2xl text-sm text-zinc-400 sm:text-base">
+                        From the foundation to the roof, our crew handles the work in-house — so your project stays on schedule and up to our standards.
+                    </p>
+
+                    <div class="mt-8 grid grid-cols-1 gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                        @foreach([
+                            ['icon' => '🧱', 'title' => 'Concrete Works', 'desc' => 'Foundations, slabs, driveways, sidewalks and patios poured to last'],
+                            ['icon' => '🏠', 'title' => 'Roofing', 'desc' => 'New roofs, replacements and repairs that keep your home protected'],
+                            ['icon' => '🪵', 'title' => 'Siding', 'desc' => 'Durable, great-looking siding installed and replaced with care'],
+                            ['icon' => '⚡', 'title' => 'Electrical', 'desc' => 'Wiring, panels, lighting and outlets done safely and up to code'],
+                            ['icon' => '🚿', 'title' => 'Plumbing', 'desc' => 'Water lines, drains and fixtures installed right the first time'],
+                            ['icon' => '📐', 'title' => 'Framing', 'desc' => 'Solid, square framing for new builds, additions and remodels'],
+                            ['icon' => '🧰', 'title' => 'Drywall', 'desc' => 'Hanging, taping and finishing for smooth, ready-to-paint walls'],
+                            ['icon' => '🎨', 'title' => 'Painting', 'desc' => 'Clean interior and exterior painting with a lasting finish'],
+                            ['icon' => '❄️', 'title' => 'AC & Heating', 'desc' => 'Air conditioning and heating installed for year-round comfort'],
+                        ] as $trade)
+                            <div class="flex gap-4 rounded-xl border border-white/10 bg-white/5 p-4 transition hover:border-blue-400/40 hover:bg-white/10 sm:p-5">
+                                <span class="text-xl sm:text-2xl">{{ $trade['icon'] }}</span>
+                                <div>
+                                    <p class="text-sm font-semibold text-white sm:text-base">{{ $trade['title'] }}</p>
+                                    <p class="mt-0.5 text-xs text-zinc-500 sm:text-sm">{{ $trade['desc'] }}</p>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
             </div>
         </section>
+
+        {{-- ===== VIDEO ===== --}}
+        @if($videoUrl = $company->websiteVideoUrl())
+            <section id="video" class="bg-white py-16 sm:py-20 lg:py-28">
+                <div class="mx-auto max-w-7xl px-4 sm:px-6">
+                    <div class="mb-10 text-center sm:mb-14">
+                        <p class="mb-3 text-xs font-bold uppercase tracking-widest text-blue-600">See Our Work</p>
+                        <h2 class="text-3xl font-extrabold leading-tight text-charcoal sm:text-4xl lg:text-5xl">
+                            Built With Care,<br>Start to Finish
+                        </h2>
+                    </div>
+                    <div class="mx-auto max-w-5xl overflow-hidden rounded-2xl border border-dove-dark bg-charcoal shadow-2xl sm:rounded-3xl">
+                        <video src="{{ $videoUrl }}" controls playsinline preload="metadata"
+                            class="aspect-video w-full bg-black">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                </div>
+            </section>
+        @endif
 
         {{-- ===== PROJECTS / PHOTOS ===== --}}
         <section id="projects" class="bg-dove py-16 sm:py-20 lg:py-28">

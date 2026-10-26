@@ -1,10 +1,17 @@
 <?php
 
 use App\Models\CompanySetting;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('components.layouts.app')] class extends Component {
+    use WithFileUploads;
+
+    /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|null */
+    public $video = null;
+
     public string $company_name    = '';
     public string $tagline         = '';
     public string $address         = '';
@@ -38,6 +45,47 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->facebook        = $settings->facebook ?? '';
         $this->instagram       = $settings->instagram ?? '';
         $this->linkedin        = $settings->linkedin ?? '';
+    }
+
+    public function updatedVideo(): void
+    {
+        $this->uploadVideo();
+    }
+
+    public function uploadVideo(): void
+    {
+        $this->validate([
+            'video' => ['required', 'file', 'mimetypes:video/mp4,video/quicktime,video/webm', 'max:40960'],
+        ], [
+            'video.mimetypes' => 'The video must be an MP4, MOV or WebM file.',
+            'video.max'       => 'The video cannot be larger than 40 MB.',
+        ]);
+
+        $settings = CompanySetting::current();
+        $oldPath  = $settings->website_video_path;
+
+        $settings->update([
+            'website_video_path' => $this->video->store('videos', 'public'),
+        ]);
+
+        if ($oldPath) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $this->reset('video');
+        session()->flash('success', 'Website video updated.');
+    }
+
+    public function removeVideo(): void
+    {
+        $settings = CompanySetting::current();
+
+        if ($settings->website_video_path) {
+            Storage::disk('public')->delete($settings->website_video_path);
+            $settings->update(['website_video_path' => null]);
+        }
+
+        session()->flash('success', 'Website video removed.');
     }
 
     public function save(): void
@@ -240,5 +288,58 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
 
     </form>
+
+    {{-- Website Video --}}
+    @php $videoUrl = \App\Models\CompanySetting::current()->websiteVideoUrl(); @endphp
+    <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+        <flux:heading size="lg">Website Video</flux:heading>
+        <flux:text class="mt-1 mb-5 text-zinc-500">Shown on the home page in the "See Our Work" section. MP4 recommended, up to 40 MB.</flux:text>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div>
+                @if($videoUrl)
+                    <video src="{{ $videoUrl }}" controls playsinline preload="metadata"
+                        class="aspect-video w-full rounded-xl bg-black" wire:key="video-{{ md5($videoUrl) }}"></video>
+                @else
+                    <div class="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-700">
+                        <flux:icon.film class="size-8" />
+                        <p class="text-sm">No video uploaded yet</p>
+                    </div>
+                @endif
+            </div>
+
+            <div class="flex flex-col gap-4"
+                x-data="{ uploading: false, progress: 0 }"
+                x-on:livewire-upload-start="uploading = true; progress = 0"
+                x-on:livewire-upload-finish="uploading = false"
+                x-on:livewire-upload-cancel="uploading = false"
+                x-on:livewire-upload-error="uploading = false"
+                x-on:livewire-upload-progress="progress = $event.detail.progress">
+                <flux:field>
+                    <flux:label>{{ $videoUrl ? 'Replace video' : 'Upload video' }}</flux:label>
+                    <input type="file" wire:model="video" accept="video/mp4,video/quicktime,video/webm"
+                        class="block w-full text-sm text-zinc-600 file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-zinc-700 hover:file:bg-zinc-200 dark:text-zinc-300 dark:file:bg-zinc-800 dark:file:text-zinc-200" />
+                    <flux:description>The video is saved automatically as soon as the upload finishes.</flux:description>
+                    <flux:error name="video" />
+                </flux:field>
+
+                <div x-show="uploading" x-cloak class="flex flex-col gap-1.5">
+                    <div class="h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                        <div class="h-full rounded-full bg-blue-600 transition-all duration-200" :style="`width: ${progress}%`"></div>
+                    </div>
+                    <p class="text-xs text-zinc-500">Uploading… <span x-text="progress"></span>%</p>
+                </div>
+                <p wire:loading wire:target="video" class="text-xs text-zinc-500">Saving video…</p>
+
+                @if($videoUrl)
+                    <div>
+                        <flux:button wire:click="removeVideo" wire:confirm="Remove the video from the website?" variant="ghost" icon="trash">
+                            Remove video
+                        </flux:button>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
 
 </div>

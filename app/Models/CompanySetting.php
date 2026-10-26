@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class CompanySetting extends Model
 {
@@ -32,6 +33,7 @@ class CompanySetting extends Model
         'backup_day',
         'backup_time',
         'backup_email',
+        'website_video_path',
     ];
 
     protected function casts(): array
@@ -46,5 +48,12 @@ class CompanySetting extends Model
     public static function current(): self
     {
         return static::firstOrCreate([], ['company_name' => 'Nucleus Industries']);
+    }
+
+    public function websiteVideoUrl(): ?string
+    {
+        return $this->website_video_path
+            ? Storage::disk('public')->url($this->website_video_path)
+            : null;
     }
 }
