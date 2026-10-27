@@ -12,6 +12,7 @@ new #[Layout('components.layouts.app')] class extends Component {
     public ?int $user_id         = null;
     public ?int $project_id      = null;
     public string $title         = '';
+    public string $job_address   = '';
     public string $quote_date    = '';
     public string $expiration_date = '';
     public string $tax_percentage  = '0';
@@ -91,6 +92,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $this->validate([
             'user_id'         => ['required', 'exists:users,id'],
             'title'           => ['required', 'string', 'max:255'],
+            'job_address'     => ['nullable', 'string', 'max:255'],
             'quote_date'      => ['required', 'date'],
             'expiration_date' => ['nullable', 'date'],
             'tax_percentage'  => ['numeric', 'min:0', 'max:100'],
@@ -111,6 +113,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'user_id'         => $this->user_id,
             'number'          => Quote::generateNumber(),
             'title'           => $this->title,
+            'job_address'     => $this->job_address ?: null,
             'client_name'     => $client->name,
             'client_email'    => $client->email,
             'client_phone'    => $client->phone ?? null,
@@ -206,6 +209,9 @@ new #[Layout('components.layouts.app')] class extends Component {
             <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Quote Details</h3>
             <div class="mb-4">
                 <flux:input wire:model="title" label="Job Name" placeholder="e.g. Kitchen remodel, Roofing, Plumbing..." required />
+            </div>
+            <div class="mb-4">
+                <flux:input wire:model="job_address" label="Job Address" icon="map-pin" placeholder="e.g. 910 Central Ave, Kearney, NE 68847" />
             </div>
             <div class="grid gap-4 sm:grid-cols-3">
                 <flux:input wire:model="quote_date" label="Quote Date" type="date" required />

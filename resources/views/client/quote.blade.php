@@ -27,6 +27,7 @@
         .report-title .label  { font-size: 22px; font-weight: 700; color: #1e3a5f; }
         .report-title .number { font-size: 14px; color: #555; margin-top: 2px; font-family: monospace; }
         .report-title .job-title { font-size: 13px; color: #1a1a1a; font-weight: 600; margin-top: 4px; }
+        .report-title .job-address { font-size: 12px; color: #555; margin-top: 2px; }
         .meta-section { display: flex; justify-content: space-between; gap: 40px; margin-bottom: 28px; }
         .meta-block h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 8px; }
         .meta-block p  { font-size: 13px; color: #1a1a1a; line-height: 1.6; }
@@ -107,6 +108,9 @@
         @endif
         @if($quote->title)
             <div class="job-title">{{ $quote->title }}</div>
+        @endif
+        @if($quote->job_address)
+            <div class="job-address">📍 {{ $quote->job_address }}</div>
         @endif
     </div>
 </div>

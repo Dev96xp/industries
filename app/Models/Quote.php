@@ -20,6 +20,7 @@ class Quote extends Model
         'user_id',
         'number',
         'title',
+        'job_address',
         'invoice_number',
         'invoice_date',
         'invoice_due_date',

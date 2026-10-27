@@ -31,6 +31,9 @@
             @if($quote->title)
                 <p style="margin-top:10px;">Job: <strong>{{ $quote->title }}</strong></p>
             @endif
+            @if($quote->job_address)
+                <p>Address: {{ $quote->job_address }}</p>
+            @endif
             <p style="margin-top:10px;">Thank you for approving quote {{ $quote->number }}. Please find your invoice below.</p>
         </div>
 

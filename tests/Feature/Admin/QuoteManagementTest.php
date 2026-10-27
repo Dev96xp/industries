@@ -64,6 +64,7 @@ it('admin can create a quote linked to a registered client', function () {
     expect($quote)->not->toBeNull()
         ->and($quote->number)->toStartWith('Q-')
         ->and($quote->title)->toBe('Kitchen remodel')
+        ->and($quote->job_address)->toBeNull()
         ->and($quote->client_name)->toBe('Jane Doe')
         ->and($quote->items)->toHaveCount(1);
 });
@@ -111,6 +112,25 @@ it('can search quotes by job name', function () {
         ->assertDontSee('Q-0102');
 });
 
+it('can search quotes by job address and shows it on the report', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage quotes');
+
+    $withAddress = Quote::factory()->create(['number' => 'Q-0201', 'job_address' => '910 Central Ave, Kearney']);
+    Quote::factory()->create(['number' => 'Q-0202', 'job_address' => '15 Elm St, Omaha']);
+
+    Volt::actingAs($admin)
+        ->test('admin.quotes.index')
+        ->set('search', 'Central Ave')
+        ->assertSee('Q-0201')
+        ->assertDontSee('Q-0202');
+
+    $this->actingAs($admin)
+        ->get(route('admin.quotes.report', $withAddress))
+        ->assertOk()
+        ->assertSee('910 Central Ave, Kearney');
+});
+
 it('generates sequential quote numbers', function () {
     Quote::factory()->create(['number' => 'Q-0005']);
 
@@ -141,13 +161,15 @@ it('admin can update an existing quote', function () {
     Volt::actingAs($admin)
         ->test('admin.quotes.edit', ['quote' => $quote])
         ->set('title', 'Roofing')
+        ->set('job_address', '910 Central Ave, Kearney, NE 68847')
         ->set('status', 'sent')
         ->call('save')
         ->assertHasNoErrors();
 
     expect($quote->fresh())
         ->status->toBe('sent')
-        ->title->toBe('Roofing');
+        ->title->toBe('Roofing')
+        ->job_address->toBe('910 Central Ave, Kearney, NE 68847');
 });
 
 it('admin can delete a quote', function () {

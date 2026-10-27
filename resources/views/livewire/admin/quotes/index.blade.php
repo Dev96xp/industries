@@ -82,6 +82,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     ->where('number', 'like', "%{$this->search}%")
                     ->orWhere('invoice_number', 'like', "%{$this->search}%")
                     ->orWhere('title', 'like', "%{$this->search}%")
+                    ->orWhere('job_address', 'like', "%{$this->search}%")
                     ->orWhereHas('client', fn ($q) => $q->where('name', 'like', "%{$this->search}%"))))
                 ->get(),
         ];
@@ -162,6 +163,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 @endif
                                 @if($quote->title)
                                     <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ $quote->title }}</p>
+                                @endif
+                                @if($quote->job_address)
+                                    <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($quote->job_address) }}" target="_blank"
+                                        class="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400">
+                                        <flux:icon.map-pin variant="micro" class="size-3" /> {{ $quote->job_address }}
+                                    </a>
                                 @endif
                             </td>
                             <td class="px-6 py-4">

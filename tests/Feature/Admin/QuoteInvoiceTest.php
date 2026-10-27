@@ -286,3 +286,17 @@ it('sorts clients in registration order', function () {
         ->set('sortBy', 'name')
         ->assertSeeInOrder(['Amy Registered Second', 'Zed Registered First']);
 });
+
+it('sorts clients by recent activity by default', function () {
+    $older = User::factory()->create(['name' => 'Aaron Older']);
+    $newer = User::factory()->create(['name' => 'Zoe Newer']);
+    collect([$older, $newer])->each->assignRole('client');
+
+    Quote::factory()->create(['user_id' => $older->id])->forceFill(['updated_at' => now()->subDays(5)])->save();
+    Quote::factory()->create(['user_id' => $newer->id])->forceFill(['updated_at' => now()])->save();
+
+    Volt::actingAs($this->admin)
+        ->test('admin.clients.index')
+        ->assertSet('sortBy', 'recent')
+        ->assertSeeInOrder(['Zoe Newer', 'Aaron Older']);
+});

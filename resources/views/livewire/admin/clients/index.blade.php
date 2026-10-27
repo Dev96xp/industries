@@ -160,8 +160,8 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $search       = '';
     public ?int   $locationFilter = null;
 
-    #[\Livewire\Attributes\Session]
-    public string $sortBy = 'name';
+    #[\Livewire\Attributes\Session(key: 'clients-sort-by')]
+    public string $sortBy = 'recent';
 
     public function mount(): void
     {
