@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Progressive Web App
+    |--------------------------------------------------------------------------
+    |
+    | The short name is shown under the home screen icon (max 12 characters).
+    | When APP_SHORT_NAME is not set, the first word of APP_NAME is used.
+    |
+    */
+
+    'short_name' => mb_substr(env('APP_SHORT_NAME') ?: strtok((string) env('APP_NAME', 'Laravel'), ' '), 0, 12),
+
+    'theme_color' => env('APP_THEME_COLOR', '#2b2d30'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

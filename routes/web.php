@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BackupController;
 use App\Http\Controllers\BusinessCardController;
+use App\Http\Controllers\ManifestController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Models\CompanySetting;
 use App\Models\Photo;
@@ -13,6 +14,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
+
+// PWA manifest — public, outside the IP restriction so any device can install the app
+Route::get('/manifest.webmanifest', ManifestController::class)->name('pwa.manifest');
 
 // Stripe webhook — no CSRF, no auth
 Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle'])
