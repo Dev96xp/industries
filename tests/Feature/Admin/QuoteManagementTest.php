@@ -306,3 +306,16 @@ it('updates client details on quotes but not invoices when the client is edited'
         ->client_phone->toBe('222')
         ->and($invoice->fresh()->client_name)->toBe('Vanesa Typo');
 });
+
+it('shows the job address in the client column on mobile and in the number column on larger screens', function () {
+    $admin = User::factory()->create();
+    $admin->givePermissionTo('manage quotes');
+
+    Quote::factory()->create(['job_address' => '910 Central Ave, Kearney']);
+
+    $html = Volt::actingAs($admin)->test('admin.quotes.index')->html();
+
+    expect(substr_count($html, '910 Central Ave, Kearney'))->toBe(2)
+        ->and($html)->toContain('sm:hidden')
+        ->and($html)->toContain('sm:inline-flex');
+});

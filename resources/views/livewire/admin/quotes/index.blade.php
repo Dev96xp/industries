@@ -159,14 +159,14 @@ new #[Layout('components.layouts.app')] class extends Component {
                             <td class="px-6 py-4">
                                 <p class="font-mono font-semibold text-zinc-700 dark:text-zinc-300">{{ $quote->display_number }}</p>
                                 @if($quote->isInvoice())
-                                    <p class="font-mono text-xs text-zinc-400">{{ $quote->number }}</p>
+                                    <p class="hidden font-mono text-xs text-zinc-400 sm:block">{{ $quote->number }}</p>
                                 @endif
                                 @if($quote->title)
-                                    <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ $quote->title }}</p>
+                                    <p class="hidden text-xs text-zinc-500 sm:block dark:text-zinc-400">{{ $quote->title }}</p>
                                 @endif
                                 @if($quote->job_address)
                                     <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($quote->job_address) }}" target="_blank"
-                                        class="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400">
+                                        class="hidden items-center gap-1 text-xs text-zinc-400 hover:text-blue-600 sm:inline-flex dark:hover:text-blue-400">
                                         <flux:icon.map-pin variant="micro" class="size-3" /> {{ $quote->job_address }}
                                     </a>
                                 @endif
@@ -175,6 +175,12 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 <p class="font-medium text-zinc-900 dark:text-zinc-100">{{ $quote->client_name }}</p>
                                 @if($quote->client_email)
                                     <p class="text-xs text-zinc-400">{{ $quote->client_email }}</p>
+                                @endif
+                                @if($quote->job_address)
+                                    <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($quote->job_address) }}" target="_blank"
+                                        class="mt-0.5 flex items-start gap-1 text-xs text-zinc-400 hover:text-blue-600 sm:hidden dark:hover:text-blue-400">
+                                        <flux:icon.map-pin variant="micro" class="mt-px size-3 shrink-0" /> {{ $quote->job_address }}
+                                    </a>
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-zinc-500">{{ $quote->quote_date->format('M d, Y') }}</td>
