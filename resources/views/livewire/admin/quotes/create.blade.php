@@ -78,7 +78,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         $taxAmount = round($subtotal * ((float) $this->tax_percentage / 100), 2);
         $total     = round($subtotal + $taxAmount - (float) $this->discount, 2);
 
-        $clients  = User::role('client')->orderBy('name')->get(['id', 'name', 'email', 'phone']);
+        $clients  = User::role('client')->notArchived()->orderBy('name')->get(['id', 'name', 'email', 'phone']);
         $products = Product::with('category')->where('is_active', true)->orderBy('name')->get(['id', 'name', 'unit_price', 'unit', 'category_id']);
         $projects = $this->user_id
             ? Project::where('client_user_id', $this->user_id)->orderBy('name')->get(['id', 'name', 'number'])

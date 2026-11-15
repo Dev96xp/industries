@@ -582,7 +582,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         return [
             'clients' => $clientRole
-                ? User::role('client')->orderBy('name')->get()
+                ? User::role('client')->where(fn ($q) => $q->whereNull('archived_at')->orWhere('id', $this->client_user_id))->orderBy('name')->get()
                 : collect(),
             'photos'       => $this->project->photos,
             'expenses'     => $this->project->expenses,

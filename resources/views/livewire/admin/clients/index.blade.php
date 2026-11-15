@@ -163,6 +163,25 @@ new #[Layout('components.layouts.app')] class extends Component {
     #[\Livewire\Attributes\Session(key: 'clients-sort-by')]
     public string $sortBy = 'recent';
 
+    #[\Livewire\Attributes\Url(as: 'tab')]
+    public string $statusTab = 'active';
+
+    public function archiveClient(int $id): void
+    {
+        $client = User::whereHas('roles', fn ($q) => $q->where('name', 'client'))->findOrFail($id);
+        $client->forceFill(['archived_at' => now()])->save();
+
+        session()->flash('success', "Client \"{$client->name}\" archived.");
+    }
+
+    public function restoreClient(int $id): void
+    {
+        $client = User::whereHas('roles', fn ($q) => $q->where('name', 'client'))->findOrFail($id);
+        $client->forceFill(['archived_at' => null])->save();
+
+        session()->flash('success', "Client \"{$client->name}\" restored.");
+    }
+
     public function mount(): void
     {
         $user = auth()->user();
@@ -173,10 +192,17 @@ new #[Layout('components.layouts.app')] class extends Component {
 
     public function with(): array
     {
-        $clients = User::with(['roles', 'quotes' => fn ($q) => $q->orderByDesc('created_at'), 'quotes.items', 'quotes.payments'])
+        $baseQuery = User::query()
             ->whereHas('roles', fn ($q) => $q->where('name', 'client'))
+            ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter));
+
+        $activeCount   = (clone $baseQuery)->notArchived()->count();
+        $archivedCount = (clone $baseQuery)->archived()->count();
+
+        $clients = $baseQuery
+            ->with(['roles', 'quotes' => fn ($q) => $q->orderByDesc('created_at'), 'quotes.items', 'quotes.payments'])
             ->withCount(['projects', 'quotes'])
-            ->when($this->locationFilter, fn ($q) => $q->where('location_id', $this->locationFilter))
+            ->when($this->statusTab === 'archived', fn ($q) => $q->archived(), fn ($q) => $q->notArchived())
             ->when($this->search, fn ($q) => $q->where(fn ($q) => $q
                 ->where('name', 'like', "%{$this->search}%")
                 ->orWhere('email', 'like', "%{$this->search}%")
@@ -194,7 +220,9 @@ new #[Layout('components.layouts.app')] class extends Component {
         };
 
         return [
-            'clients'   => $clients->values(),
+            'clients'       => $clients->values(),
+            'activeCount'   => $activeCount,
+            'archivedCount' => $archivedCount,
             'locations' => \App\Models\Location::where('is_active', true)->orderBy('name')->get(),
         ];
     }
@@ -218,7 +246,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     @endforeach
                 </flux:select>
             @endif
-            <flux:badge color="amber" size="lg">{{ $clients->count() }} Clients</flux:badge>
+            <flux:badge color="amber" size="lg">{{ $activeCount }} Clients</flux:badge>
             <flux:modal.trigger name="create-client">
                 <flux:button variant="primary" icon="user-plus" size="sm">New Client</flux:button>
             </flux:modal.trigger>
@@ -297,6 +325,21 @@ new #[Layout('components.layouts.app')] class extends Component {
         </div>
     </div>
 
+    {{-- Active / Archived tabs --}}
+    <div class="flex w-fit gap-1 rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+        <button type="button" wire:click="$set('statusTab', 'active')"
+            class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition {{ $statusTab === 'active' ? 'bg-white text-zinc-900 shadow dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            Active
+            <span class="rounded-full bg-zinc-200/70 px-1.5 text-[11px] tabular-nums dark:bg-zinc-700">{{ $activeCount }}</span>
+        </button>
+        <button type="button" wire:click="$set('statusTab', 'archived')"
+            class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition {{ $statusTab === 'archived' ? 'bg-white text-zinc-900 shadow dark:bg-zinc-900 dark:text-white' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300' }}">
+            <flux:icon.archive-box variant="micro" />
+            Archived
+            <span class="rounded-full bg-zinc-200/70 px-1.5 text-[11px] tabular-nums dark:bg-zinc-700">{{ $archivedCount }}</span>
+        </button>
+    </div>
+
     {{-- View switcher --}}
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-3">
@@ -342,7 +385,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         @if($clients->isEmpty())
             <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 py-16 dark:border-zinc-700">
                 <flux:icon.users class="size-8 text-zinc-300 dark:text-zinc-600" />
-                <p class="mt-3 text-sm text-zinc-400">No clients have registered yet.</p>
+                <p class="mt-3 text-sm text-zinc-400">{{ $statusTab === 'archived' ? 'No archived clients.' : 'No clients have registered yet.' }}</p>
             </div>
         @else
             <div class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -492,6 +535,17 @@ new #[Layout('components.layouts.app')] class extends Component {
                                         @endforeach
                                     </ul>
                                 @endif
+
+                                <div class="mt-4 flex items-center justify-end gap-1 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                                    @if($client->isArchived())
+                                        <flux:button wire:click="restoreClient({{ $client->id }})" variant="ghost" size="sm" icon="arrow-uturn-left">Restore</flux:button>
+                                    @else
+                                        <flux:button wire:click="openEdit({{ $client->id }})" variant="ghost" size="sm" icon="pencil">Edit</flux:button>
+                                        <flux:button wire:click="archiveClient({{ $client->id }})"
+                                            wire:confirm="Archive {{ $client->name }}? Their quotes and invoices stay untouched."
+                                            variant="ghost" size="sm" icon="archive-box">Archive</flux:button>
+                                    @endif
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -570,22 +624,31 @@ new #[Layout('components.layouts.app')] class extends Component {
                             </td>
                             <td class="px-6 py-4 text-right" x-on:click.stop>
                                 <div class="flex items-center justify-end gap-2">
-                                    <flux:button
-                                        variant="ghost" size="sm" icon="printer"
-                                        onclick="printClientLabel('{{ addslashes($client->name) }}','{{ addslashes($client->address ?? '') }}','{{ addslashes($client->city ?? '') }}','{{ addslashes($client->state ?? '') }}','{{ addslashes($client->zip ?? '') }}','{{ addslashes($client->phone ?? '') }}')"
-                                    />
-                                    <flux:button wire:click="openEdit({{ $client->id }})" variant="ghost" size="sm" icon="pencil" />
-                                    @can('manage quotes')
-                                        <flux:button
-                                            href="{{ route('admin.quotes.create', ['client' => $client->id]) }}"
-                                            variant="primary"
-                                            size="sm"
-                                            icon="document-text"
-                                            wire:navigate
-                                        >
-                                            New Quote
+                                    @if($client->isArchived())
+                                        <flux:button wire:click="restoreClient({{ $client->id }})" variant="ghost" size="sm" icon="arrow-uturn-left">
+                                            Restore
                                         </flux:button>
-                                    @endcan
+                                    @else
+                                        <flux:button
+                                            variant="ghost" size="sm" icon="printer"
+                                            onclick="printClientLabel('{{ addslashes($client->name) }}','{{ addslashes($client->address ?? '') }}','{{ addslashes($client->city ?? '') }}','{{ addslashes($client->state ?? '') }}','{{ addslashes($client->zip ?? '') }}','{{ addslashes($client->phone ?? '') }}')"
+                                        />
+                                        <flux:button wire:click="openEdit({{ $client->id }})" variant="ghost" size="sm" icon="pencil" />
+                                        <flux:button wire:click="archiveClient({{ $client->id }})"
+                                            wire:confirm="Archive {{ $client->name }}? Their quotes and invoices stay untouched."
+                                            variant="ghost" size="sm" icon="archive-box" title="Archive client" />
+                                        @can('manage quotes')
+                                            <flux:button
+                                                href="{{ route('admin.quotes.create', ['client' => $client->id]) }}"
+                                                variant="primary"
+                                                size="sm"
+                                                icon="document-text"
+                                                wire:navigate
+                                            >
+                                                New Quote
+                                            </flux:button>
+                                        @endcan
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -655,7 +718,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                     <tbody>
                         <tr>
                             <td colspan="7" class="px-6 py-10 text-center text-sm text-zinc-400">
-                                No clients have registered yet.
+                                {{ $statusTab === 'archived' ? 'No archived clients.' : 'No clients have registered yet.' }}
                             </td>
                         </tr>
                     </tbody>

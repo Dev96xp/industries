@@ -46,7 +46,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         return [
             'clients' => $clientRole
-                ? User::role('client')->orderBy('name')->get()
+                ? User::role('client')->notArchived()->orderBy('name')->get()
                 : collect(),
         ];
     }

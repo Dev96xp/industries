@@ -129,8 +129,8 @@ new #[Layout('components.layouts.app')] class extends Component {
             $modules->push([
                 'name' => 'Clients', 'icon' => 'user-group', 'gradient' => 'from-amber-400 to-orange-500',
                 'url' => route('admin.clients'),
-                'stat' => User::whereHas('roles', fn ($q) => $q->where('name', 'client'))->count().' clients',
-                'detail' => User::whereHas('roles', fn ($q) => $q->where('name', 'client'))->where('created_at', '>=', now()->startOfMonth())->count().' new this month',
+                'stat' => User::whereHas('roles', fn ($q) => $q->where('name', 'client'))->notArchived()->count().' clients',
+                'detail' => User::whereHas('roles', fn ($q) => $q->where('name', 'client'))->notArchived()->where('created_at', '>=', now()->startOfMonth())->count().' new this month',
                 'alert' => null,
             ]);
         }

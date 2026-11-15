@@ -8,12 +8,12 @@ use Livewire\Volt\Component;
 new #[Layout('components.layouts.app')] class extends Component {
     public function with(): array
     {
-        $clients = User::role('client')
+        $clients = User::role('client')->notArchived()
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->get(['id', 'name', 'email', 'phone', 'address', 'city', 'state', 'zip', 'latitude', 'longitude']);
 
-        $clientsWithoutCoords = User::role('client')
+        $clientsWithoutCoords = User::role('client')->notArchived()
             ->where(fn ($q) => $q->whereNull('latitude')->orWhereNull('longitude'))
             ->count();
 

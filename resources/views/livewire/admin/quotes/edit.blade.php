@@ -158,7 +158,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
         $canChangeClient = $this->canChangeClient();
         $clients = $this->changingClient
-            ? User::role('client')->orderBy('name')->get(['id', 'name', 'email'])
+            ? User::role('client')->notArchived()->orderBy('name')->get(['id', 'name', 'email'])
             : collect();
 
         return compact('subtotal', 'taxAmount', 'total', 'products', 'amountPaid', 'balanceDue', 'fullyPaid', 'projects', 'isInvoice', 'locked', 'canRevert', 'canChangeClient', 'clients');
