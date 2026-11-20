@@ -18,6 +18,9 @@ new #[Layout('components.layouts.app')] class extends Component {
     public string $notes = '';
     public bool $isActive = true;
 
+    /** @var array<int, int|string> */
+    public array $subcategoryIds = [];
+
     public function save(): void
     {
         $this->validate([
@@ -31,9 +34,11 @@ new #[Layout('components.layouts.app')] class extends Component {
             'insuranceCompany'       => ['nullable', 'string', 'max:255'],
             'licenseNumber'          => ['nullable', 'string', 'max:100'],
             'notes'                  => ['nullable', 'string'],
+            'subcategoryIds'         => ['array'],
+            'subcategoryIds.*'       => ['integer', 'exists:subcategories,id'],
         ]);
 
-        Contractor::create([
+        $contractor = Contractor::create([
             'company_name'    => $this->companyName,
             'contact_name'    => $this->contactName ?: null,
             'phone'           => $this->phone ?: null,
@@ -48,9 +53,18 @@ new #[Layout('components.layouts.app')] class extends Component {
             'is_active'                => $this->isActive,
         ]);
 
+        $contractor->subcategories()->sync($this->subcategoryIds);
+
         session()->flash('success', "Contractor \"{$this->companyName}\" created.");
 
         $this->redirectRoute('admin.contractors', navigate: true);
+    }
+
+    public function with(): array
+    {
+        return [
+            'pickerCategories' => \App\Models\Category::forSubcategoryPicker($this->subcategoryIds),
+        ];
     }
 }; ?>
 
@@ -83,6 +97,11 @@ new #[Layout('components.layouts.app')] class extends Component {
                 <flux:input wire:model="address" label="Address" placeholder="123 Main St, City, State" />
                 <flux:input wire:model="insuranceCompany" label="Insurance Company" placeholder="State Farm, Allstate..." />
             </div>
+        </div>
+
+        {{-- Trades --}}
+        <div class="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900">
+            <x-subcategory-picker :categories="$pickerCategories" :selected="$subcategoryIds" />
         </div>
 
         {{-- Notes & Status --}}

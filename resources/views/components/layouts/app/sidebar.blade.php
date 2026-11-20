@@ -40,7 +40,7 @@
                             :expanded="request()->routeIs('admin.products*') || request()->routeIs('admin.categories*')">
                             <flux:navlist.item icon="cube" :href="route('admin.products')"
                                 :current="request()->routeIs('admin.products*')" wire:navigate>Products</flux:navlist.item>
-                            <flux:navlist.item icon="tag" :href="route('admin.categories')"
+                            <flux:navlist.item icon="tag" :href="route('admin.categories.index')"
                                 :current="request()->routeIs('admin.categories*')" wire:navigate>Categories</flux:navlist.item>
                         </flux:navlist.group>
                     </flux:navlist.group>
