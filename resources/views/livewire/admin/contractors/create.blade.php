@@ -91,8 +91,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                 </div>
                 <flux:input wire:model="contactName" label="Contact Person" placeholder="John Smith" />
                 <flux:input wire:model="specialty" label="Specialty / Trade" placeholder="Electrical, Plumbing, HVAC..." />
-                <flux:input wire:model="phone" label="Phone" placeholder="+1 (555) 000-0000" />
-                <flux:input wire:model="phoneSecondary" label="Secondary Phone" placeholder="+1 (555) 000-0000" />
+                <flux:input wire:model="phone" label="Phone"  type="tel" data-phone placeholder="(555)-000-0000" />
+                <flux:input wire:model="phoneSecondary" label="Secondary Phone"  type="tel" data-phone placeholder="(555)-000-0000" />
                 <flux:input wire:model="email" label="Email" type="email" placeholder="contact@company.com" />
                 <flux:input wire:model="address" label="Address" placeholder="123 Main St, City, State" />
                 <flux:input wire:model="insuranceCompany" label="Insurance Company" placeholder="State Farm, Allstate..." />

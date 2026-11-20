@@ -214,12 +214,12 @@ new #[Layout('components.layouts.app')] class extends Component {
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <flux:field>
                     <flux:label>Primary Phone</flux:label>
-                    <flux:input wire:model="phone" type="tel" placeholder="(555) 000-0000" />
+                    <flux:input wire:model="phone"  type="tel" data-phone placeholder="(555)-000-0000" />
                     <flux:error name="phone" />
                 </flux:field>
                 <flux:field>
                     <flux:label>Secondary Phone</flux:label>
-                    <flux:input wire:model="phone_secondary" type="tel" placeholder="(555) 000-0001" />
+                    <flux:input wire:model="phone_secondary"  type="tel" data-phone placeholder="(555)-000-0000" />
                     <flux:error name="phone_secondary" />
                 </flux:field>
                 <flux:field class="sm:col-span-2">

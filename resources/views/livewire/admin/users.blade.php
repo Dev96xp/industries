@@ -335,7 +335,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             <flux:heading size="lg">Edit Staff Member</flux:heading>
 
             <flux:input wire:model="editStaffName" label="Full Name" placeholder="John Doe" />
-            <flux:input wire:model="editStaffPhone" label="Phone (optional)" type="tel" placeholder="+1 555 000 0000" />
+            <flux:input wire:model="editStaffPhone" label="Phone (optional)"  type="tel" data-phone placeholder="(555)-000-0000" />
 
             @if($locations->isNotEmpty())
                 <flux:field>

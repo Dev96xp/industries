@@ -86,7 +86,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         <div class="grid grid-cols-2 gap-4">
             <flux:field>
                 <flux:label>Phone</flux:label>
-                <flux:input wire:model="phone" placeholder="402-555-0100" />
+                <flux:input wire:model="phone"  type="tel" data-phone placeholder="(555)-000-0000" />
                 <flux:error name="phone" />
             </flux:field>
             <flux:field>

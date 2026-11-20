@@ -130,3 +130,14 @@ it('skips the mobile browser while searching', function () {
         ->assertViewHas('browseTree', fn ($tree) => $tree->isEmpty())
         ->assertSee('Searchable Co');
 });
+
+it('marks every dashboard phone field so it is formatted while typing', function (string $component) {
+    $html = Volt::actingAs(User::factory()->create())->test($component)->html();
+
+    expect($html)->toContain('data-phone')
+        ->and($html)->toContain('placeholder="(555)-000-0000"');
+})->with([
+    'admin.contractors.create',
+    'admin.company-settings',
+    'admin.locations.create',
+]);

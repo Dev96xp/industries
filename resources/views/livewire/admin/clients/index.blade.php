@@ -743,7 +743,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             <flux:input wire:model="newName" label="Full Name" placeholder="John Doe" />
             <flux:input wire:model="newEmail" label="Email" type="email" placeholder="john@example.com" />
-            <flux:input wire:model="newPhone" label="Phone (optional)" placeholder="+1 555 000 0000" />
+            <flux:input wire:model="newPhone" label="Phone (optional)"  type="tel" data-phone placeholder="(555)-000-0000" />
             <flux:input wire:model="newAddress" label="Address (optional)" placeholder="123 Main St" />
             <div class="grid grid-cols-3 gap-3">
                 <flux:input wire:model="newCity" label="City" placeholder="Houston" class="col-span-1" />
@@ -781,7 +781,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 
             <flux:input wire:model="editName" label="Full Name" placeholder="John Doe" />
             <flux:input wire:model="editEmail" label="Email" type="email" placeholder="john@example.com" />
-            <flux:input wire:model="editPhone" label="Phone (optional)" placeholder="+1 555 000 0000" />
+            <flux:input wire:model="editPhone" label="Phone (optional)"  type="tel" data-phone placeholder="(555)-000-0000" />
             <flux:input wire:model="editAddress" label="Address (optional)" placeholder="123 Main St" />
             @if($locations->isNotEmpty())
                 <flux:field>
