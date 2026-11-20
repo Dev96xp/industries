@@ -30,7 +30,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'is_active'  => true,
         ]);
 
-        session()->flash('success', "Category \"{$category->name}\" created.");
+        session()->flash('success', "Category \"{$category->label()}\" created.");
 
         $this->redirectRoute('admin.categories.index', navigate: true);
     }

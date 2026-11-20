@@ -42,7 +42,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'is_active'   => $this->isActive,
         ]);
 
-        session()->flash('success', "Subcategory \"{$this->subcategory->name}\" updated.");
+        session()->flash('success', "Subcategory \"{$this->subcategory->label()}\" updated.");
 
         $this->redirectRoute('admin.categories.index', navigate: true);
     }
@@ -58,7 +58,7 @@ new #[Layout('components.layouts.app')] class extends Component {
 <div class="flex h-full w-full flex-1 flex-col gap-6 p-1 sm:p-6">
     <div class="flex items-center gap-3">
         <flux:button href="{{ route('admin.categories.index') }}" variant="ghost" icon="arrow-left" size="sm" wire:navigate />
-        <flux:heading size="xl">Edit: {{ $subcategory->name }}</flux:heading>
+        <flux:heading size="xl">Edit: {{ $subcategory->label() }}</flux:heading>
     </div>
 
     <flux:card class="max-w-lg">

@@ -17,19 +17,19 @@ new #[Layout('components.layouts.app')] class extends Component {
         $category = Category::findOrFail($id);
 
         if ($category->subcategories()->exists()) {
-            session()->flash('error', "\"{$category->name}\" has subcategories. Delete or move them first.");
+            session()->flash('error', "\"{$category->label()}\" has subcategories. Delete or move them first.");
 
             return;
         }
 
         if ($category->products()->exists()) {
-            session()->flash('error', "\"{$category->name}\" is used by products. Move those products to another category first.");
+            session()->flash('error', "\"{$category->label()}\" is used by products. Move those products to another category first.");
 
             return;
         }
 
         $category->delete();
-        session()->flash('success', "Category \"{$category->name}\" deleted.");
+        session()->flash('success', "Category \"{$category->label()}\" deleted.");
     }
 
     public function toggleSubcategory(int $id): void
@@ -43,13 +43,13 @@ new #[Layout('components.layouts.app')] class extends Component {
         $subcategory = Subcategory::findOrFail($id);
 
         if ($subcategory->isInUse()) {
-            session()->flash('error', "\"{$subcategory->name}\" is assigned to contractors. Unassign it from them first.");
+            session()->flash('error', "\"{$subcategory->label()}\" is assigned to contractors. Unassign it from them first.");
 
             return;
         }
 
         $subcategory->delete();
-        session()->flash('success', "Subcategory \"{$subcategory->name}\" deleted.");
+        session()->flash('success', "Subcategory \"{$subcategory->label()}\" deleted.");
     }
 
     public function with(): array
@@ -136,7 +136,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 size="sm" variant="ghost" icon="pencil" title="Edit category" />
 
                             <flux:button wire:click.prevent="deleteCategory({{ $category->id }})"
-                                wire:confirm="Delete the category &quot;{{ $category->name }}&quot;?"
+                                wire:confirm="Delete the category &quot;{{ $category->label() }}&quot;?"
                                 size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600"
                                 :disabled="(bool) $deleteBlockedBy" title="{{ $deleteBlockedBy ?? 'Delete category' }}" />
                         </div>
@@ -146,7 +146,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                         <flux:table>
                             <flux:table.columns>
                                 <flux:table.column>Subcategory</flux:table.column>
-                                <flux:table.column class="hidden sm:table-cell">English</flux:table.column>
+                                <flux:table.column class="hidden sm:table-cell">Spanish</flux:table.column>
                                 <flux:table.column class="hidden md:table-cell">Slug</flux:table.column>
                                 <flux:table.column class="hidden sm:table-cell">Order</flux:table.column>
                                 <flux:table.column>Status</flux:table.column>
@@ -156,8 +156,8 @@ new #[Layout('components.layouts.app')] class extends Component {
                                 @forelse($category->subcategories as $subcategory)
                                     @php $inUse = $subcategory->contractors_count > 0; @endphp
                                     <flux:table.row wire:key="subcategory-{{ $subcategory->id }}">
-                                        <flux:table.cell class="font-medium text-zinc-800 dark:text-zinc-100">{{ $subcategory->name }}</flux:table.cell>
-                                        <flux:table.cell class="hidden sm:table-cell">{{ $subcategory->name_en ?? '—' }}</flux:table.cell>
+                                        <flux:table.cell class="font-medium text-zinc-800 dark:text-zinc-100">{{ $subcategory->label() }}</flux:table.cell>
+                                        <flux:table.cell class="hidden sm:table-cell">{{ $subcategory->name }}</flux:table.cell>
                                         <flux:table.cell class="hidden font-mono text-xs text-zinc-400 md:table-cell">{{ $subcategory->slug }}</flux:table.cell>
                                         <flux:table.cell class="hidden tabular-nums sm:table-cell">{{ $subcategory->sort_order }}</flux:table.cell>
                                         <flux:table.cell>
@@ -172,7 +172,7 @@ new #[Layout('components.layouts.app')] class extends Component {
                                                 <flux:button href="{{ route('admin.categories.subcategories.edit', $subcategory) }}" wire:navigate
                                                     size="sm" variant="ghost" icon="pencil" title="Edit subcategory" />
                                                 <flux:button wire:click="deleteSubcategory({{ $subcategory->id }})"
-                                                    wire:confirm="Delete the subcategory &quot;{{ $subcategory->name }}&quot;?"
+                                                    wire:confirm="Delete the subcategory &quot;{{ $subcategory->label() }}&quot;?"
                                                     size="sm" variant="ghost" icon="trash" class="text-red-500 hover:text-red-600"
                                                     :disabled="$inUse" title="{{ $inUse ? 'Assigned to contractors — unassign them first' : 'Delete subcategory' }}" />
                                             </div>

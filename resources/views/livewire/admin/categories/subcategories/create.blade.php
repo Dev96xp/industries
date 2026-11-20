@@ -34,7 +34,7 @@ new #[Layout('components.layouts.app')] class extends Component {
             'is_active'  => true,
         ]);
 
-        session()->flash('success', "Subcategory \"{$subcategory->name}\" added to {$this->category->name}.");
+        session()->flash('success', "Subcategory \"{$subcategory->label()}\" added to {$this->category->label()}.");
 
         $this->redirectRoute('admin.categories.index', navigate: true);
     }
@@ -45,7 +45,7 @@ new #[Layout('components.layouts.app')] class extends Component {
         <flux:button href="{{ route('admin.categories.index') }}" variant="ghost" icon="arrow-left" size="sm" wire:navigate />
         <div>
             <flux:heading size="xl">New Subcategory</flux:heading>
-            <flux:text class="mt-1 text-zinc-500">In {{ $category->name }}</flux:text>
+            <flux:text class="mt-1 text-zinc-500">In {{ $category->label() }}</flux:text>
         </div>
     </div>
 

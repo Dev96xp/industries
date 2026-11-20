@@ -177,3 +177,12 @@ it('redirects guests away from every category screen', function () {
         route('admin.categories.subcategories.edit', $subcategory),
     ])->each(fn (string $url) => $this->get($url)->assertRedirect(route('login')));
 });
+
+it('shows subcategories in english first with the spanish name as reference', function () {
+    app()->setLocale('en');
+    $subcategory = Subcategory::factory()->create(['name' => 'Techos', 'name_en' => 'Roofing']);
+
+    Volt::actingAs($this->admin)
+        ->test('admin.categories.index')
+        ->assertSeeInOrder(['Spanish', 'Roofing', 'Techos']);
+});
