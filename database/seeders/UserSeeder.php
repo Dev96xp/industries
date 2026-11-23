@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Location;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class UserSeeder extends Seeder
 {
@@ -92,7 +93,7 @@ class UserSeeder extends Seeder
             unset($data['location']);
 
             $user = User::create([
-                'password' => bcrypt('12345678'),
+                'password' => bcrypt(config('app.seed_user_password') ?: Str::random(40)),
                 'location_id' => $locations->get($locationName)?->id,
                 ...$data,
             ]);

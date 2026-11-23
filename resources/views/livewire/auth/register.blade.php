@@ -2,11 +2,15 @@
 
 use App\Models\Location;
 use App\Models\User;
+use App\Rules\HumanName;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rules;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
 use Spatie\Permission\Models\Role;
 
@@ -18,18 +22,48 @@ new #[Layout('components.layouts.auth')] class extends Component {
     public string $password_confirmation = '';
     public ?int $location_id = null;
 
+    /** Honeypot: hidden from people, bots fill it in. */
+    public string $website = '';
+
+    #[Locked]
+    public int $formLoadedAt = 0;
+
+    public function mount(): void
+    {
+        $this->formLoadedAt = now()->timestamp;
+    }
+
     /**
      * Handle an incoming registration request.
      */
     public function register(): void
     {
+        if ($this->website !== '' || now()->timestamp - $this->formLoadedAt < 3) {
+            $this->redirect(route('home', absolute: false), navigate: true);
+
+            return;
+        }
+
+        $throttleKey = 'register:'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
+            throw ValidationException::withMessages([
+                'email' => __('auth.throttle', [
+                    'seconds' => RateLimiter::availableIn($throttleKey),
+                    'minutes' => ceil(RateLimiter::availableIn($throttleKey) / 60),
+                ]),
+            ]);
+        }
+
         $validated = $this->validate([
-            'name'        => ['required', 'string', 'max:255'],
+            'name'        => ['required', 'string', 'max:255', new HumanName],
             'email'       => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:' . User::class],
             'phone'       => ['nullable', 'string', 'max:50'],
             'location_id' => ['nullable', 'exists:locations,id'],
             'password'    => ['required', 'string', 'confirmed', Rules\Password::defaults()],
         ]);
+
+        RateLimiter::hit($throttleKey, 3600);
 
         $validated['password'] = Hash::make($validated['password']);
 
@@ -50,6 +84,10 @@ new #[Layout('components.layouts.auth')] class extends Component {
     <x-auth-session-status class="text-center" :status="session('status')" />
 
     <form wire:submit="register" class="flex flex-col gap-6">
+        <div class="absolute -left-[9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
+            <label for="website">Website</label>
+            <input wire:model="website" id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
         <!-- Name -->
         <div class="grid gap-2">
             <flux:input wire:model="name" id="name" label="{{ __('Name') }}" type="text" name="name" required autofocus autocomplete="name" placeholder="Full name" />

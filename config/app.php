@@ -29,6 +29,10 @@ return [
 
     'theme_color' => env('APP_THEME_COLOR', '#2b2d30'),
 
+    'seed_admin_password' => env('SEED_ADMIN_PASSWORD'),
+
+    'seed_user_password' => env('SEED_USER_PASSWORD'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
